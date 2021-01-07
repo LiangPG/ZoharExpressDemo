@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextureView
+        android:id="@+id/ttv"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <RelativeLayout
+        android:id="@+id/rl_btn"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <Button
+            android:id="@+id/btn_start_media_player"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:onClick="startAudioPlayer"
+            android:text="开始音效播放器" />
+
+        <Button
+            android:id="@+id/btn_start_media_player2"
+            android:layout_below="@+id/btn_start_media_player"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:onClick="startAudioPlayer2"
+            android:text="开始音效播放器2" />
+
+        <Button
+            android:id="@+id/btn_start_media_record"
+            android:layout_below="@+id/btn_start_media_player2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:onClick="startMediaRecord"
+            android:text="开始本地媒体录制" />
+
+        <Button
+            android:id="@+id/btn_stop_media_record"
+            android:layout_below="@+id/btn_start_media_record"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:onClick="stopMediaRecord"
+            android:text="停止本地媒体录制" />
+    </RelativeLayout>
+</FrameLayout>
