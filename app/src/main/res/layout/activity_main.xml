@@ -15,38 +15,76 @@
         android:layout_height="match_parent">
 
         <Button
-            android:id="@+id/btn_start_media_player"
+            android:id="@+id/btn_start_publish"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:onClick="startAudioPlayer"
-            android:text="开始音效播放器" />
+            android:onClick="startPublish"
+            android:text="开始推流" />
 
         <Button
-            android:id="@+id/btn_start_media_player2"
-            android:layout_below="@+id/btn_start_media_player"
+            android:id="@+id/btn_start_publish2"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:onClick="startAudioPlayer2"
-            android:text="开始音效播放器2" />
+            android:layout_below="@id/btn_start_publish"
+            android:onClick="startPublish2"
+            android:text="开始推流2" />
 
         <Button
-            android:id="@+id/btn_start_media_record"
-            android:layout_below="@+id/btn_start_media_player2"
+            android:id="@+id/btn_stop_publish"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
-            android:onClick="startMediaRecord"
-            android:text="开始本地媒体录制" />
+            android:onClick="stopPublish"
+            android:text="停止推流" />
 
         <Button
-            android:id="@+id/btn_stop_media_record"
-            android:layout_below="@+id/btn_start_media_record"
+            android:id="@+id/btn_start_play"
+            android:layout_below="@+id/btn_start_publish2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="startPlay"
+            android:text="开始拉流" />
+
+        <Button
+            android:id="@+id/btn_stop_play"
+            android:layout_below="@+id/btn_start_publish2"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
-            android:onClick="stopMediaRecord"
-            android:text="停止本地媒体录制" />
+            android:onClick="stopPlay"
+            android:text="停止拉流" />
+
+        <Button
+            android:id="@+id/btn_start_play2"
+            android:layout_below="@+id/btn_start_play"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="startPlay2"
+            android:text="开始拉流2" />
+
+        <Button
+            android:id="@+id/btn_stop_play2"
+            android:layout_below="@+id/btn_start_play"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:onClick="stopPlay2"
+            android:text="停止拉流2" />
+
+        <Button
+            android:id="@+id/btn_login_room"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="loginRoom"
+            android:layout_alignParentBottom="true"
+            android:text="登录房间" />
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="logoutRoom"
+            android:layout_alignParentBottom="true"
+            android:layout_alignParentEnd="true"
+            android:text="退出房间" />
     </RelativeLayout>
 </FrameLayout>

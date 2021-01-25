@@ -1,42 +1,33 @@
 package com.zego.expressDemo;
 
-import android.media.AudioManager;
-import android.media.SoundPool;
 import android.os.Bundle;
-import android.os.Environment;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.TextureView;
 import android.view.View;
+import android.widget.RelativeLayout;
 
 import com.zego.expressDemo.data.ZegoDataCenter;
-import com.zego.expressDemo.helper.FileHelper;
 
 import org.json.JSONObject;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import im.zego.zegoexpress.ZegoAudioEffectPlayer;
 import im.zego.zegoexpress.ZegoExpressEngine;
-import im.zego.zegoexpress.callback.IZegoAudioEffectPlayerLoadResourceCallback;
-import im.zego.zegoexpress.callback.IZegoDataRecordEventHandler;
 import im.zego.zegoexpress.callback.IZegoEventHandler;
 import im.zego.zegoexpress.constants.ZegoAECMode;
 import im.zego.zegoexpress.constants.ZegoAudioChannel;
 import im.zego.zegoexpress.constants.ZegoAudioCodecID;
-import im.zego.zegoexpress.constants.ZegoDataRecordState;
-import im.zego.zegoexpress.constants.ZegoDataRecordType;
-import im.zego.zegoexpress.constants.ZegoPublishChannel;
 import im.zego.zegoexpress.constants.ZegoPublisherState;
 import im.zego.zegoexpress.constants.ZegoRoomState;
 import im.zego.zegoexpress.constants.ZegoScenario;
 import im.zego.zegoexpress.constants.ZegoUpdateType;
 import im.zego.zegoexpress.entity.ZegoAudioConfig;
-import im.zego.zegoexpress.entity.ZegoAudioEffectPlayConfig;
-import im.zego.zegoexpress.entity.ZegoDataRecordConfig;
-import im.zego.zegoexpress.entity.ZegoDataRecordProgress;
+import im.zego.zegoexpress.entity.ZegoCanvas;
 import im.zego.zegoexpress.entity.ZegoStream;
 
 public class MainActivity extends BaseActivity {
@@ -44,6 +35,32 @@ public class MainActivity extends BaseActivity {
     private final static String TAG = "zohar";
 
     private ZegoExpressEngine mExpressEngine;
+
+    private TextureView mTtv;
+
+    private RelativeLayout mRlBtn;
+
+    private boolean isBtnVisible = true;
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        Log.i(TAG, "onCreateOptionsMenu: ");
+        MenuInflater inflater = new MenuInflater(this);
+        inflater.inflate(R.menu.menu_main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.hide_btn:
+                isBtnVisible = !isBtnVisible;
+                mRlBtn.setVisibility(isBtnVisible ? View.VISIBLE : View.GONE);
+                break;
+        }
+
+        return true;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -98,53 +115,54 @@ public class MainActivity extends BaseActivity {
         mExpressEngine.enableANS(false);
         mExpressEngine.enableAGC(false);
         mExpressEngine.enableHeadphoneAEC(false);
-
-        mExpressEngine.startPreview();
-        mAudioEffectPlayer = mExpressEngine.createAudioEffectPlayer();
-        mAudioEffectPlayer.loadResource(1, FileHelper.copyAssetsFile2Phone(this, "111.aac"), new IZegoAudioEffectPlayerLoadResourceCallback() {
-            @Override
-            public void onLoadResourceCallback(int i) {
-                Log.d(TAG, "onLoadResourceCallback soundID: " + i);
-            }
-        });
     }
 
-    private ZegoAudioEffectPlayer mAudioEffectPlayer;
+    public void startPublish(View view) {
 
+        ZegoCanvas canvas = new ZegoCanvas(mTtv);
+        mExpressEngine.startPreview(canvas);
 
-    public void startAudioPlayer(View view) {
-        ZegoAudioEffectPlayConfig audioEffectPlayConfig = new ZegoAudioEffectPlayConfig();
-        audioEffectPlayConfig.isPublishOut = false;
-        audioEffectPlayConfig.playCount = 1;
-        mAudioEffectPlayer.start(1, "", audioEffectPlayConfig);
-//        mSoundPool.play(mSoundPoolSoundID, 1, 1, 0, 0, 1.0f);
+        mExpressEngine.startPublishingStream(STREAM_ID);
     }
 
-    public void startAudioPlayer2(View view) {
-//        mSoundPool.play(mSoundPoolSoundID2, 1, 1, 0, 0, 1.0f);
+    public void startPublish2(View view) {
+        ZegoCanvas canvas = new ZegoCanvas(mTtv);
+        mExpressEngine.startPreview(canvas);
+
+        mExpressEngine.startPublishingStream(STREAM_ID_2);
     }
 
-    public void startMediaRecord(View view) {
-        ZegoDataRecordConfig recordConfig = new ZegoDataRecordConfig();
-        recordConfig.recordType = ZegoDataRecordType.ONLY_AUDIO;
-        recordConfig.filePath = getExternalCacheDir() + File.separator + "temp.aac";
-        Log.d(TAG, "-->:: recordConfig.filePath: " + new File(recordConfig.filePath).canWrite() + new File(recordConfig.filePath).canRead());
+    public void stopPublish(View view) {
+        mExpressEngine.stopPreview();
 
-        mExpressEngine.startRecordingCapturedData(recordConfig, ZegoPublishChannel.MAIN);
-        mExpressEngine.setDataRecordEventHandler(new IZegoDataRecordEventHandler() {
-            @Override
-            public void onCapturedDataRecordStateUpdate(ZegoDataRecordState state, int errorCode, ZegoDataRecordConfig config, ZegoPublishChannel channel) {
-                Log.d(TAG, "-->:: onCapturedDataRecordStateUpdate state: " + state + ", errorCode: " + errorCode);
-            }
-
-            @Override
-            public void onCapturedDataRecordProgressUpdate(ZegoDataRecordProgress progress, ZegoDataRecordConfig config, ZegoPublishChannel channel) {
-                Log.d(TAG, "-->:: onCapturedDataRecordProgressUpdate progress.duration: " + progress.duration + ", progress.currentFileSize: " + progress.currentFileSize);
-            }
-        });
+        mExpressEngine.stopPublishingStream();
     }
 
-    public void stopMediaRecord(View view) {
-        mExpressEngine.stopRecordingCapturedData(ZegoPublishChannel.MAIN);
+    public void startPlay(View view) {
+        ZegoCanvas canvas = new ZegoCanvas(mTtv);
+
+        mExpressEngine.startPlayingStream(STREAM_ID, canvas, null);
+    }
+
+    public void startPlay2(View view) {
+        ZegoCanvas canvas = new ZegoCanvas(mTtv);
+
+        mExpressEngine.startPlayingStream(STREAM_ID_2, canvas, null);
+    }
+
+    public void stopPlay(View view) {
+        mExpressEngine.stopPlayingStream(STREAM_ID);
+    }
+
+    public void stopPlay2(View view) {
+        mExpressEngine.stopPlayingStream(STREAM_ID_2);
+    }
+
+    public void loginRoom(View view) {
+        mExpressEngine.loginRoom(ROOM_ID, ZegoDataCenter.ZEGO_USER);
+    }
+
+    public void logoutRoom(View view) {
+        mExpressEngine.logoutRoom(ROOM_ID);
     }
 }
