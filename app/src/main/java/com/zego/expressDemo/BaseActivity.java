@@ -18,7 +18,7 @@ public abstract class BaseActivity extends AppCompatActivity {
 
     protected static final String TAG = "zohar";
 
-    protected static final String ROOM_ID = "room_id_1";
+    protected static final String ROOM_ID = "166";
     protected static final String ROOM_ID_2 = "room_id_2";
     protected static final String STREAM_ID = "stream_id_1";
     protected static final String STREAM_ID_2 = "stream_id_2";
