@@ -105,9 +105,7 @@ public class MainActivity extends BaseActivity {
                 });
 
         ZegoAudioConfig audioConfig = new ZegoAudioConfig();
-        audioConfig.codecID = ZegoAudioCodecID.NORMAL2;
-        audioConfig.bitrate = 192;
-        audioConfig.channel = ZegoAudioChannel.MONO;
+        audioConfig.codecID = ZegoAudioCodecID.LOW3;
         mExpressEngine.setAudioConfig(audioConfig);
 
         mExpressEngine.enableAEC(true);
@@ -156,6 +154,12 @@ public class MainActivity extends BaseActivity {
 
     public void stopPlay2(View view) {
         mExpressEngine.stopPlayingStream(STREAM_ID_2);
+    }
+
+    boolean isMuteMic = false;
+    public void customFeature(View view) {
+        isMuteMic = !isMuteMic;
+        mExpressEngine.muteMicrophone(isMuteMic);
     }
 
     public void loginRoom(View view) {
