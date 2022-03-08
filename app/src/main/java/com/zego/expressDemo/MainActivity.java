@@ -10,6 +10,7 @@ import android.view.View;
 import android.widget.RelativeLayout;
 
 import com.zego.expressDemo.data.ZegoDataCenter;
+import com.zego.expressDemo.videocapture.VideoCaptureFromCamera2;
 
 import org.json.JSONObject;
 
@@ -26,8 +27,11 @@ import im.zego.zegoexpress.constants.ZegoPublisherState;
 import im.zego.zegoexpress.constants.ZegoRoomState;
 import im.zego.zegoexpress.constants.ZegoScenario;
 import im.zego.zegoexpress.constants.ZegoUpdateType;
+import im.zego.zegoexpress.constants.ZegoVideoBufferType;
+import im.zego.zegoexpress.constants.ZegoVideoMirrorMode;
 import im.zego.zegoexpress.entity.ZegoAudioConfig;
 import im.zego.zegoexpress.entity.ZegoCanvas;
+import im.zego.zegoexpress.entity.ZegoCustomVideoCaptureConfig;
 import im.zego.zegoexpress.entity.ZegoStream;
 
 public class MainActivity extends BaseActivity {
@@ -66,6 +70,8 @@ public class MainActivity extends BaseActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        mTtv = findViewById(R.id.ttv);
 
         mExpressEngine = ZegoExpressEngine.createEngine(ZegoDataCenter.APP_ID, ZegoDataCenter.APP_SIGN, ZegoDataCenter.IS_TEST_ENV,
                 ZegoScenario.GENERAL, getApplication(), new IZegoEventHandler() {
@@ -113,6 +119,13 @@ public class MainActivity extends BaseActivity {
         mExpressEngine.enableANS(false);
         mExpressEngine.enableAGC(false);
         mExpressEngine.enableHeadphoneAEC(false);
+
+        ZegoCustomVideoCaptureConfig config = new ZegoCustomVideoCaptureConfig();
+        config.bufferType = ZegoVideoBufferType.GL_TEXTURE_2D;
+        mExpressEngine.enableCustomVideoCapture(true, config);
+        mExpressEngine.setCustomVideoCaptureHandler(new VideoCaptureFromCamera2());
+
+        mExpressEngine.setVideoMirrorMode(ZegoVideoMirrorMode.NO_MIRROR);
     }
 
     public void startPublish(View view) {
@@ -121,6 +134,7 @@ public class MainActivity extends BaseActivity {
         mExpressEngine.startPreview(canvas);
 
         mExpressEngine.startPublishingStream(STREAM_ID);
+        mExpressEngine.startMixerTask();
     }
 
     public void startPublish2(View view) {
