@@ -134,7 +134,6 @@ public class MainActivity extends BaseActivity {
         mExpressEngine.startPreview(canvas);
 
         mExpressEngine.startPublishingStream(STREAM_ID);
-        mExpressEngine.startMixerTask();
     }
 
     public void startPublish2(View view) {
