@@ -86,11 +86,6 @@ public class MainActivity extends BaseActivity {
                     }
 
                     @Override
-                    public void onRoomStreamUpdate(String roomID, ZegoUpdateType updateType, ArrayList<ZegoStream> streamList) {
-                        Log.d(TAG, "-->:: onRoomStreamUpdate roomID: " + roomID + ", updateType: " + updateType + ", streamList: " + streamList);
-                    }
-
-                    @Override
                     public void onCapturedSoundLevelUpdate(float soundLevel) {
 //                        Log.d(TAG, "-->:: onCapturedSoundLevelUpdate soundLevel: " + soundLevel);
                     }
