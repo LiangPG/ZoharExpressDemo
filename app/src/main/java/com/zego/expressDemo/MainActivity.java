@@ -171,7 +171,6 @@ public class MainActivity extends BaseActivity {
     }
 
     public void loginRoom(View view) {
-        mExpressEngine.loginRoom(ROOM_ID, ZegoDataCenter.ZEGO_USER);
     }
 
     public void logoutRoom(View view) {

@@ -19,4 +19,8 @@ public class BaseApplication extends Application {
     public void onCreate() {
         super.onCreate();
     }
+
+    public static Application getInstance() {
+        return (Application) sApplication.getApplicationContext();
+    }
 }

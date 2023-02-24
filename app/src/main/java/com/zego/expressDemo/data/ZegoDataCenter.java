@@ -21,7 +21,7 @@ import im.zego.zegoexpress.entity.ZegoUser;
 public class ZegoDataCenter {
 
     private static final String SP_NAME = "sp_name_base";
-    private static final String SP_KEY_USER_ID = "sp_key_user_id";
+    private static final String SP_KEY_UID = "sp_key_user_id";
     private static final String SP_KEY_USER_NAME = "sp_key_user_name";
 
     public static final boolean IS_TEST_ENV = true;
@@ -30,20 +30,21 @@ public class ZegoDataCenter {
 
     public static final String APP_SIGN = "1ec3f85cb2f21370264eb371c8c65ca37fa33b9defef2a85e0c899ae82c0f6f8";
 
-    public static final ZegoUser ZEGO_USER = new ZegoUser(getUserID(), getUserName()); // 根据自己情况初始化唯一识别USER
+    public static final User ZEGO_USER = new User(getUID(), getUserName()); // 根据自己情况初始化唯一识别USER
 
     /**
      * 获取保存的UserName，如果没有，则新建
      */
-    private static String getUserID() {
+    private static int getUID() {
         SharedPreferences sp = BaseApplication.sApplication.getSharedPreferences(SP_NAME, Context.MODE_PRIVATE);
-        String userID = sp.getString(SP_KEY_USER_ID, "");
-        if (TextUtils.isEmpty(userID)) {
-            userID = UUID.randomUUID().toString();
-            // 保存用户名
-            sp.edit().putString(SP_KEY_USER_ID, userID).apply();
+        int uid = sp.getInt(SP_KEY_UID, 0);
+        if (uid == 0) {
+            UUID uuid = UUID.randomUUID();
+            uid = Math.abs(uuid.hashCode());
+            // 保存uid
+            sp.edit().putInt(SP_KEY_UID, uid).apply();
         }
-        return userID;
+        return uid;
     }
 
     /**
