@@ -1,179 +1,226 @@
 package com.zego.expressDemo;
 
 import android.os.Bundle;
-import android.util.Log;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
-import android.view.TextureView;
 import android.view.View;
-import android.widget.RelativeLayout;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.EditText;
+import android.widget.Toast;
 
+import com.zego.expressDemo.bean.ZegoVideoCanvas;
 import com.zego.expressDemo.data.ZegoDataCenter;
-import com.zego.expressDemo.videocapture.VideoCaptureFromCamera2;
 
-import org.json.JSONObject;
+import java.io.File;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import im.zego.zegoexpress.constants.ZegoDataRecordType;
+import im.zego.zegoexpress.constants.ZegoPublishChannel;
+import im.zego.zegoexpress.entity.ZegoDataRecordConfig;
 
-import im.zego.zegoexpress.ZegoExpressEngine;
-import im.zego.zegoexpress.callback.IZegoEventHandler;
-import im.zego.zegoexpress.constants.ZegoAECMode;
-import im.zego.zegoexpress.constants.ZegoAudioChannel;
-import im.zego.zegoexpress.constants.ZegoAudioCodecID;
-import im.zego.zegoexpress.constants.ZegoPublisherState;
-import im.zego.zegoexpress.constants.ZegoRoomState;
-import im.zego.zegoexpress.constants.ZegoScenario;
-import im.zego.zegoexpress.constants.ZegoUpdateType;
-import im.zego.zegoexpress.constants.ZegoVideoBufferType;
-import im.zego.zegoexpress.constants.ZegoVideoMirrorMode;
-import im.zego.zegoexpress.entity.ZegoAudioConfig;
-import im.zego.zegoexpress.entity.ZegoCanvas;
-import im.zego.zegoexpress.entity.ZegoCustomVideoCaptureConfig;
-import im.zego.zegoexpress.entity.ZegoStream;
-
-public class MainActivity extends BaseActivity {
+public class MainActivity extends BaseActivity implements CompoundButton.OnCheckedChangeListener {
 
     private final static String TAG = "zohar";
 
-    private ZegoExpressEngine mExpressEngine;
+    private EditText mEtRoomID;
+    private CheckBox mCbPublishMain;
+    private CheckBox mCbPublishAux;
+    private CheckBox mCbPublishThird;
+    private CheckBox mCbPublishFourth;
+    private CheckBox mCbPlayMain;
+    private CheckBox mCbPlayAux;
+    private CheckBox mCbPlayThird;
+    private CheckBox mCbPlayFourth;
 
-    private TextureView mTtv;
-
-    private RelativeLayout mRlBtn;
-
-    private boolean isBtnVisible = true;
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        Log.i(TAG, "onCreateOptionsMenu: ");
-        MenuInflater inflater = new MenuInflater(this);
-        inflater.inflate(R.menu.menu_main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.hide_btn:
-                isBtnVisible = !isBtnVisible;
-                mRlBtn.setVisibility(isBtnVisible ? View.VISIBLE : View.GONE);
-                break;
-        }
-
-        return true;
-    }
+    private boolean isJoinLive;
+    private boolean isRecord;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         setContentView(R.layout.activity_main);
 
-        mTtv = findViewById(R.id.ttv);
-
-        mExpressEngine = ZegoExpressEngine.createEngine(ZegoDataCenter.APP_ID, ZegoDataCenter.APP_SIGN, ZegoDataCenter.IS_TEST_ENV,
-                ZegoScenario.GENERAL, getApplication(), new IZegoEventHandler() {
-                    @Override
-                    public void onPlayerRecvSEI(String streamID, byte[] data) {
-                        Log.d(TAG, "-->:: onPlayerRecvSEI streamID: " + streamID + ", content: " + new String(data));
-                    }
-
-                    @Override
-                    public void onRoomStateUpdate(String roomID, ZegoRoomState state, int errorCode, JSONObject extendedData) {
-                        Log.d(TAG, "-->:: onRoomStateUpdate roomID: " + roomID + ", state: " + state + ", errorCode: " + errorCode);
-                    }
-
-                    @Override
-                    public void onCapturedSoundLevelUpdate(float soundLevel) {
-//                        Log.d(TAG, "-->:: onCapturedSoundLevelUpdate soundLevel: " + soundLevel);
-                    }
-
-                    @Override
-                    public void onRemoteSoundLevelUpdate(HashMap<String, Float> soundLevels) {
-                        for (Map.Entry<String, Float> soundLevel : soundLevels.entrySet()) {
-                            Log.d(TAG, "-->:: onRemoteSoundLevelUpdate streamID: " + soundLevel.getKey() + "soundLevel: " + soundLevel.getValue());
-                        }
-                    }
-
-                    @Override
-                    public void onPublisherStateUpdate(String streamID, ZegoPublisherState state, int errorCode, JSONObject extendedData) {
-                        super.onPublisherStateUpdate(streamID, state, errorCode, extendedData);
-                    }
-
-
-                });
-
-        ZegoAudioConfig audioConfig = new ZegoAudioConfig();
-        audioConfig.codecID = ZegoAudioCodecID.LOW3;
-        mExpressEngine.setAudioConfig(audioConfig);
-
-        mExpressEngine.enableAEC(true);
-        mExpressEngine.setAECMode(ZegoAECMode.SOFT);
-        mExpressEngine.enableANS(false);
-        mExpressEngine.enableAGC(false);
-        mExpressEngine.enableHeadphoneAEC(false);
-
-        ZegoCustomVideoCaptureConfig config = new ZegoCustomVideoCaptureConfig();
-        config.bufferType = ZegoVideoBufferType.GL_TEXTURE_2D;
-        mExpressEngine.enableCustomVideoCapture(true, config);
-        mExpressEngine.setCustomVideoCaptureHandler(new VideoCaptureFromCamera2());
-
-        mExpressEngine.setVideoMirrorMode(ZegoVideoMirrorMode.NO_MIRROR);
+        initView();
     }
 
-    public void startPublish(View view) {
+    private void initView() {
+        mEtRoomID = findViewById(R.id.et_room_id);
+        mCbPublishMain = findViewById(R.id.cb_publish_main);
+        mCbPublishAux = findViewById(R.id.cb_publish_aux);
+        mCbPublishThird = findViewById(R.id.cb_publish_third);
+        mCbPublishFourth = findViewById(R.id.cb_publish_fourth);
 
-        ZegoCanvas canvas = new ZegoCanvas(mTtv);
-        mExpressEngine.startPreview(canvas);
+        mCbPlayMain = findViewById(R.id.cb_play_main);
+        mCbPlayAux = findViewById(R.id.cb_play_aux);
+        mCbPlayThird = findViewById(R.id.cb_play_third);
+        mCbPlayFourth = findViewById(R.id.cb_play_fourth);
 
-        mExpressEngine.startPublishingStream(STREAM_ID);
+        mCbPublishMain.setOnCheckedChangeListener(this);
+        mCbPublishAux.setOnCheckedChangeListener(this);
+        mCbPublishThird.setOnCheckedChangeListener(this);
+        mCbPublishFourth.setOnCheckedChangeListener(this);
+        mCbPlayMain.setOnCheckedChangeListener(this);
+        mCbPlayAux.setOnCheckedChangeListener(this);
+        mCbPlayThird.setOnCheckedChangeListener(this);
+        mCbPlayFourth.setOnCheckedChangeListener(this);
+
+        findViewById(R.id.btn_leave_live).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ZegoEngine.getEngine().leaveLive();
+                isJoinLive = false;
+            }
+        });
+
+        findViewById(R.id.btn_join_live).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String roomID = mEtRoomID.getText().toString().trim();
+                if (roomID.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "房间ID不能为 null", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                isJoinLive = true;
+
+                ZegoEngine.getEngine().setVideoConfig(240, 432, 15, 350, ZegoPublishChannel.MAIN);
+                ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, ZegoPublishChannel.AUX);
+                ZegoEngine.getEngine().setVideoConfig(360, 640, 15, 400, ZegoPublishChannel.THIRD);
+                ZegoEngine.getEngine().setVideoConfig(270, 480, 15, 250, ZegoPublishChannel.FOURTH);
+
+                ZegoEngine.JoinLiveBuilder builder = ZegoEngine.getLiveBuilder(roomID);
+                if (mCbPublishMain.isChecked()) {
+                    builder.putPublishStreamInfo(getPublishStreamInfo(ZegoPublishChannel.MAIN));
+                }
+                if (mCbPublishAux.isChecked()) {
+                    builder.putPublishStreamInfo(getPublishStreamInfo(ZegoPublishChannel.AUX));
+                }
+                if (mCbPublishThird.isChecked()) {
+                    builder.putPublishStreamInfo(getPublishStreamInfo(ZegoPublishChannel.THIRD));
+                }
+                if (mCbPublishFourth.isChecked()) {
+                    builder.putPublishStreamInfo(getPublishStreamInfo(ZegoPublishChannel.FOURTH));
+                }
+                if (mCbPlayMain.isChecked()) {
+                    builder.addPlayStreamInfo(getPlayStreamInfo(ZegoPublishChannel.MAIN));
+                }
+                if (mCbPlayAux.isChecked()) {
+                    builder.addPlayStreamInfo(getPlayStreamInfo(ZegoPublishChannel.AUX));
+                }
+                if (mCbPlayThird.isChecked()) {
+                    builder.addPlayStreamInfo(getPlayStreamInfo(ZegoPublishChannel.THIRD));
+
+                }
+                if (mCbPlayFourth.isChecked()) {
+                    builder.addPlayStreamInfo(getPlayStreamInfo(ZegoPublishChannel.FOURTH));
+                }
+                builder.joinLive();
+
+                ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_main), ZegoPublishChannel.MAIN.value()));
+                ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_aux), ZegoPublishChannel.AUX.value()));
+                ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_third), ZegoPublishChannel.THIRD.value()));
+                ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_fourth), ZegoPublishChannel.FOURTH.value()));
+            }
+        });
+
+        findViewById(R.id.btn_start_record).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                isRecord = !isRecord;
+                if (isRecord) {
+                    ZegoDataRecordConfig recordConfig = new ZegoDataRecordConfig();
+                    recordConfig.recordType = ZegoDataRecordType.AUDIO_AND_VIDEO;
+                    recordConfig.filePath = new File(getExternalCacheDir(), "temp.mp4").getAbsolutePath();
+                    ZegoEngine.getEngine().startRecordingCaptured(recordConfig);
+                } else {
+                    ZegoEngine.getEngine().stopRecordingCaptured();
+                }
+            }
+        });
     }
 
-    public void startPublish2(View view) {
-        ZegoCanvas canvas = new ZegoCanvas(mTtv);
-        mExpressEngine.startPreview(canvas);
+    @Override
+    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+        if (!isJoinLive) {
+            return;
+        }
+        if (buttonView.getId() == R.id.cb_publish_main) {
+            if (!isChecked) {
+                ZegoEngine.getEngine().stopPublish(getPublishStreamInfo(ZegoPublishChannel.MAIN));
+            }
+        }
+        if (buttonView.getId() == R.id.cb_publish_aux) {
+            if (!isChecked) {
+                ZegoEngine.getEngine().stopPublish(getPublishStreamInfo(ZegoPublishChannel.AUX));
+            }
+        }
+        if (buttonView.getId() == R.id.cb_publish_third) {
+            if (!isChecked) {
+                ZegoEngine.getEngine().stopPublish(getPublishStreamInfo(ZegoPublishChannel.THIRD));
+            }
+        }
+        if (buttonView.getId() == R.id.cb_publish_fourth) {
+            if (!isChecked) {
+                ZegoEngine.getEngine().stopPublish(getPublishStreamInfo(ZegoPublishChannel.FOURTH));
+            }
+        }
 
-        mExpressEngine.startPublishingStream(STREAM_ID_2);
+        if (buttonView.getId() == R.id.cb_play_main) {
+            ZegoEngine.UserStreamInfo playStreamInfo = getPlayStreamInfo(ZegoPublishChannel.MAIN);
+            if (isChecked) {
+                ZegoEngine.getEngine().startPlayStream(playStreamInfo);
+            } else {
+                ZegoEngine.getEngine().stopPlayStream(playStreamInfo);
+            }
+        }
+        if (buttonView.getId() == R.id.cb_play_aux) {
+            ZegoEngine.UserStreamInfo playStreamInfo = getPlayStreamInfo(ZegoPublishChannel.AUX);
+            if (isChecked) {
+                ZegoEngine.getEngine().startPlayStream(playStreamInfo);
+            } else {
+                ZegoEngine.getEngine().stopPlayStream(playStreamInfo);
+            }
+        }
+        if (buttonView.getId() == R.id.cb_play_third) {
+            ZegoEngine.UserStreamInfo playStreamInfo = getPlayStreamInfo(ZegoPublishChannel.THIRD);
+            if (isChecked) {
+                ZegoEngine.getEngine().startPlayStream(playStreamInfo);
+            } else {
+                ZegoEngine.getEngine().stopPlayStream(playStreamInfo);
+            }
+        }
+        if (buttonView.getId() == R.id.cb_play_fourth) {
+            ZegoEngine.UserStreamInfo playStreamInfo = getPlayStreamInfo(ZegoPublishChannel.FOURTH);
+            if (isChecked) {
+                ZegoEngine.getEngine().startPlayStream(playStreamInfo);
+            } else {
+                ZegoEngine.getEngine().stopPlayStream(playStreamInfo);
+            }
+        }
     }
 
-    public void stopPublish(View view) {
-        mExpressEngine.stopPreview();
-
-        mExpressEngine.stopPublishingStream();
+    public ZegoEngine.UserStreamInfo getPublishStreamInfo(ZegoPublishChannel channel) {
+        ZegoEngine.UserStreamInfo streamInfo = new ZegoEngine.UserStreamInfo(ZegoDataCenter.ZEGO_USER.getUserId(), getPublishTarget(channel), channel == ZegoPublishChannel.MAIN ? ZegoEngine.StreamType.RTC : ZegoEngine.StreamType.CDN);
+        streamInfo.setPublishChannel(channel);
+        return streamInfo;
     }
 
-    public void startPlay(View view) {
-        ZegoCanvas canvas = new ZegoCanvas(mTtv);
-
-        mExpressEngine.startPlayingStream(STREAM_ID, canvas, null);
+    public ZegoEngine.UserStreamInfo getPlayStreamInfo(ZegoPublishChannel channel) {
+        return new ZegoEngine.UserStreamInfo(channel.value(), getPlayTarget(channel), channel == ZegoPublishChannel.MAIN ? ZegoEngine.StreamType.RTC : ZegoEngine.StreamType.CDN);
     }
 
-    public void startPlay2(View view) {
-        ZegoCanvas canvas = new ZegoCanvas(mTtv);
-
-        mExpressEngine.startPlayingStream(STREAM_ID_2, canvas, null);
+    public String getPublishTarget(ZegoPublishChannel channel) {
+        if (channel == ZegoPublishChannel.MAIN) {
+            return "rtc_stream";
+        } else {
+            return "rtmp://wsdemo.zego.im/miniapp/" + channel.name();
+        }
     }
 
-    public void stopPlay(View view) {
-        mExpressEngine.stopPlayingStream(STREAM_ID);
-    }
-
-    public void stopPlay2(View view) {
-        mExpressEngine.stopPlayingStream(STREAM_ID_2);
-    }
-
-    boolean isMuteMic = false;
-    public void customFeature(View view) {
-        isMuteMic = !isMuteMic;
-        mExpressEngine.muteMicrophone(isMuteMic);
-    }
-
-    public void loginRoom(View view) {
-    }
-
-    public void logoutRoom(View view) {
-        mExpressEngine.logoutRoom(ROOM_ID);
+    public String getPlayTarget(ZegoPublishChannel channel) {
+        if (channel == ZegoPublishChannel.MAIN) {
+            return "rtc_stream";
+        } else {
+            return "rtmp://rtmp.wsdemo.zego.im/miniapp/" + channel.name();
+        }
     }
 }

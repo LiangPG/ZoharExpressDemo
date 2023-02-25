@@ -1,99 +1,142 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <TextureView
-        android:id="@+id/ttv"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+    <EditText
+        android:id="@+id/et_room_id"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_toStartOf="@id/btn_join_live"
+        android:gravity="center"
+        android:hint="房间ID" />
 
-    <RelativeLayout
-        android:id="@+id/rl_btn"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
+    <Button
+        android:id="@+id/btn_join_live"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_toStartOf="@id/btn_leave_live"
+        android:text="join_live" />
 
-        <Button
-            android:id="@+id/btn_start_publish"
+    <Button
+        android:id="@+id/btn_leave_live"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:text="leave_live" />
+
+    <View
+        android:id="@+id/v_center"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_centerInParent="true" />
+
+    <LinearLayout
+        android:id="@+id/ll_publish"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/btn_join_live"
+        android:layout_alignParentStart="true"
+        android:layout_toStartOf="@id/v_center"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <CheckBox
+            android:id="@+id/cb_publish_main"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="startPublish"
-            android:text="开始推流" />
+            android:text="publish_main" />
 
-        <Button
-            android:id="@+id/btn_start_publish2"
+        <CheckBox
+            android:id="@+id/cb_publish_aux"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/btn_start_publish"
-            android:onClick="startPublish2"
-            android:text="开始推流2" />
+            android:text="publish_aux" />
 
-        <Button
-            android:id="@+id/btn_stop_publish"
+        <CheckBox
+            android:id="@+id/cb_publish_third"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:onClick="stopPublish"
-            android:text="停止推流" />
+            android:text="publish_third" />
 
-        <Button
-            android:id="@+id/btn_start_play"
-            android:layout_below="@+id/btn_start_publish2"
+        <CheckBox
+            android:id="@+id/cb_publish_fourth"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="startPlay"
-            android:text="开始拉流" />
+            android:text="publish_fourth" />
+    </LinearLayout>
 
-        <Button
-            android:id="@+id/btn_stop_play"
-            android:layout_below="@+id/btn_start_publish2"
+    <LinearLayout
+        android:id="@+id/ll_play"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/btn_join_live"
+        android:layout_alignParentEnd="true"
+        android:layout_toEndOf="@id/v_center"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <CheckBox
+            android:id="@+id/cb_play_main"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:onClick="stopPlay"
-            android:text="停止拉流" />
+            android:text="play_main" />
 
-        <Button
-            android:id="@+id/btn_start_play2"
-            android:layout_below="@+id/btn_start_play"
+        <CheckBox
+            android:id="@+id/cb_play_aux"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="startPlay2"
-            android:text="开始拉流2" />
+            android:text="play_aux" />
 
-        <Button
-            android:id="@+id/btn_stop_play2"
-            android:layout_below="@+id/btn_start_play"
+        <CheckBox
+            android:id="@+id/cb_play_third"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:onClick="stopPlay2"
-            android:text="停止拉流2" />
+            android:text="play_third" />
 
-        <Button
-            android:id="@+id/btn_feature"
-            android:layout_below="@+id/btn_stop_play2"
+        <CheckBox
+            android:id="@+id/cb_play_fourth"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:onClick="customFeature"
-            android:text="customFeature" />
+            android:text="play_fourth" />
+    </LinearLayout>
 
-        <Button
-            android:id="@+id/btn_login_room"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:onClick="loginRoom"
-            android:layout_alignParentBottom="true"
-            android:text="登录房间" />
+    <com.zego.expressDemo.view.WH43TextureView
+        android:id="@+id/ttv_main"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/ll_publish"
+        android:layout_toStartOf="@id/v_center"/>
 
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:onClick="logoutRoom"
-            android:layout_alignParentBottom="true"
-            android:layout_alignParentEnd="true"
-            android:text="退出房间" />
-    </RelativeLayout>
-</FrameLayout>
+    <com.zego.expressDemo.view.WH43TextureView
+        android:id="@+id/ttv_aux"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/ll_publish"
+        android:layout_toEndOf="@id/v_center"
+        android:layout_alignParentEnd="true"/>
+
+    <com.zego.expressDemo.view.WH43TextureView
+        android:id="@+id/ttv_third"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/ttv_main"
+        android:layout_toStartOf="@id/v_center"/>
+
+    <com.zego.expressDemo.view.WH43TextureView
+        android:id="@+id/ttv_fourth"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/ttv_main"
+        android:layout_toEndOf="@id/v_center"
+        android:layout_alignParentEnd="true"/>
+
+    <Button
+        android:id="@+id/btn_start_record"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"/>
+</RelativeLayout>

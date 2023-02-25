@@ -21,7 +21,7 @@ import im.zego.zegoexpress.entity.ZegoUser;
 public class ZegoDataCenter {
 
     private static final String SP_NAME = "sp_name_base";
-    private static final String SP_KEY_UID = "sp_key_user_id";
+    private static final String SP_KEY_UID = "sp_key_user_id_int";
     private static final String SP_KEY_USER_NAME = "sp_key_user_name";
 
     public static final boolean IS_TEST_ENV = true;
