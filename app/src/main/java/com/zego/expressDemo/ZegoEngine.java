@@ -29,7 +29,6 @@ import com.zego.expressDemo.videocapture.IZegoVideoFrameConsumer;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,7 +53,6 @@ import im.zego.zegoexpress.constants.ZegoAudioSourceType;
 import im.zego.zegoexpress.constants.ZegoAudioVADStableStateMonitorType;
 import im.zego.zegoexpress.constants.ZegoAudioVADType;
 import im.zego.zegoexpress.constants.ZegoDataRecordState;
-import im.zego.zegoexpress.constants.ZegoDataRecordType;
 import im.zego.zegoexpress.constants.ZegoPlayerState;
 import im.zego.zegoexpress.constants.ZegoPublishChannel;
 import im.zego.zegoexpress.constants.ZegoPublisherState;
@@ -129,7 +127,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private static final int MSG_WHAT_REMOVE_PUBLISH_CDN_URL_TASK = 0x11;
     public static final long TIME_KEEP_STREAM_PUBLISH_IN_MILLS = 3000;
 
-    private static ZegoEngine sEngine;
+    private static volatile ZegoEngine sEngine;
 
     /**
      * 获取引擎对象实例。
@@ -171,7 +169,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         }
     };
 
-    private ZegoExpressEngine mExpressEngine = null;
+    private final ZegoExpressEngine mExpressEngine;
     private final CameraExternalVideoCaptureGL mCameraCapture;
     private ByteBuffer mCaptureDataByteBuffer;
     private final Map<String, ZegoEngineEventHandler> mEventHandlerMap;
@@ -179,7 +177,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private boolean isLoginSuccess;
     private String mRoomID; // 当前登录的房间，null 表示为登录房间
     private UserStreamInfo mPublishStreamInfoRTC; // 当前 RTC 推流信息，使用主路流推 RTC 流
-    private UserStreamInfo mPublishStreamInfoCDN;  // 当前 CDN 推流的信息，使用 辅路流推 CDN 流
+    private final Map<ZegoPublishChannel, UserStreamInfo> mCdnPublishStreamInfoMap;  // 当前 CDN 推流的信息，使用 Aux、THIRD、FOURTH 进行推流
     private final List<UserStreamInfo> mPlayingStreamInfos;
     private final Map<UserStreamInfo, PlayStreamStateBean> mPlayingStreamStateBeans;
 
@@ -199,6 +197,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private ZegoEngine() {
         LogUtils.i(TAG, "ZegoEngine() init");
         mEventHandlerMap = new HashMap<>();
+        mCdnPublishStreamInfoMap = new HashMap<>();
         mPlayingStreamInfos = new ArrayList<>();
         mRemoteCanvasMap = new HashMap<>();
         mPlayingStreamStateBeans = new HashMap<>();
@@ -243,7 +242,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                                 leaveLive(roomID, User.get().getUserId());
                             } else if (state == ZegoRoomState.DISCONNECTED && !isLoginSuccess && errorCode != 0) {
                                 joinLiveFailed(roomID, User.get().getUserId(), errorCode);
-                            } else if (state == ZegoRoomState.DISCONNECTED && isLoginSuccess && errorCode != 0) {
+                            } else if (state == ZegoRoomState.DISCONNECTED && isLoginSuccess) {
                                 liveDisconnected();
                             }
                         }
@@ -293,6 +292,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                             playerRenderVideoFirstFrame(getPlayingStreamInfoByStreamID(streamID));
                         }
 
+                        @Override
                         public void onDeviceError(int errorCode, String deviceName) {
                             LogUtils.d("onDeviceError errorCode = $errorCode  deviceName = $deviceName");
                         }
@@ -340,12 +340,16 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         customVideoCaptureConfig.bufferType = ZegoVideoBufferType.RAW_DATA;
         mExpressEngine.enableCustomVideoCapture(true, customVideoCaptureConfig, ZegoPublishChannel.MAIN);
         mExpressEngine.enableCustomVideoCapture(true, customVideoCaptureConfig, ZegoPublishChannel.AUX);
+        mExpressEngine.enableCustomVideoCapture(true, customVideoCaptureConfig, ZegoPublishChannel.THIRD);
+        mExpressEngine.enableCustomVideoCapture(true, customVideoCaptureConfig, ZegoPublishChannel.FOURTH);
         mExpressEngine.setCustomVideoCaptureHandler(mCameraCapture);
 
         // CDN 流音频来源
         ZegoCustomAudioConfig audioConfig = new ZegoCustomAudioConfig();
-        audioConfig.sourceType = ZegoAudioSourceType.DEFAULT;
+        audioConfig.sourceType = ZegoAudioSourceType.DEFAULT; // TODO ??
         mExpressEngine.enableCustomAudioIO(true, audioConfig, ZegoPublishChannel.AUX);
+        mExpressEngine.enableCustomAudioIO(true, audioConfig, ZegoPublishChannel.THIRD);
+        mExpressEngine.enableCustomAudioIO(true, audioConfig, ZegoPublishChannel.FOURTH);
 
         // 默认预览推流都镜像
         boolean isSetMirrorMode = (boolean) SPUtils.get(Utils.getApp(), User.get().getUserId() + Constant.KEY_VIDEO_MIRROR_MODE_VALUE, false);
@@ -362,6 +366,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         ZegoAudioConfig auxAudioConfig = new ZegoAudioConfig();
         auxAudioConfig.codecID = ZegoAudioCodecID.NORMAL;
         mExpressEngine.setAudioConfig(auxAudioConfig, ZegoPublishChannel.AUX);
+        mExpressEngine.setAudioConfig(auxAudioConfig, ZegoPublishChannel.THIRD);
+        mExpressEngine.setAudioConfig(auxAudioConfig, ZegoPublishChannel.FOURTH);
 //        mExpressEngine.enableHardwareDecoder(true);
 //        mExpressEngine.enableHardwareEncoder(true);
     }
@@ -369,6 +375,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private void setVideoMirrorMode(ZegoVideoMirrorMode mirrorMode) {
         mExpressEngine.setVideoMirrorMode(mirrorMode, ZegoPublishChannel.MAIN);
         mExpressEngine.setVideoMirrorMode(mirrorMode, ZegoPublishChannel.AUX);
+        mExpressEngine.setVideoMirrorMode(mirrorMode, ZegoPublishChannel.THIRD);
+        mExpressEngine.setVideoMirrorMode(mirrorMode, ZegoPublishChannel.FOURTH);
     }
 
     private void release() {
@@ -420,7 +428,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                 // 开发者可以在这里根据录制进度处理录制过程进度变更的逻辑，例如在界面上进行 UI 的提示等
                 LogUtils.i(TAG, "startRecordingCaptured: " + progress.currentFileSize + ", mLocalCanvas: " + mLocalCanvas);
             }
-
         });
     }
 
@@ -430,6 +437,18 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     public void stopRecordingCaptured() {
         mExpressEngine.stopRecordingCapturedData(ZegoPublishChannel.MAIN);
         mExpressEngine.setDataRecordEventHandler(null);
+    }
+
+    private void startAudioDataObserverForCdnPublishIfNeed() {
+        if (!mCdnPublishStreamInfoMap.isEmpty()) {
+            mExpressEngine.startAudioDataObserver(ZegoAudioDataCallbackBitMask.CAPTURED.value(), new ZegoAudioFrameParam());
+        }
+    }
+
+    private void stopAudioDataObserverForCdnPublishIfNeed() {
+        if (mCdnPublishStreamInfoMap.isEmpty()) {
+            mExpressEngine.startAudioDataObserver(ZegoAudioDataCallbackBitMask.CAPTURED.value(), new ZegoAudioFrameParam());
+        }
     }
 
     public void stopPreview() {
@@ -445,6 +464,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         isEnableCamera = enable;
         mExpressEngine.enableCamera(enable, ZegoPublishChannel.MAIN);
         mExpressEngine.enableCamera(enable, ZegoPublishChannel.AUX);
+        mExpressEngine.enableCamera(enable, ZegoPublishChannel.THIRD);
+        mExpressEngine.enableCamera(enable, ZegoPublishChannel.FOURTH);
         checkAndSetVideoCaptureState();
     }
 
@@ -452,9 +473,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      * 检测并且按需启动状态
      */
     private void checkAndSetVideoCaptureState() {
-        LogUtils.d(TAG, "checkAndSetVideoCaptureState isEnableCamera: " + isEnableCamera + ", isPreview: " + isPreview + ", mPublishStreamInfoCDN: " + mPublishStreamInfoCDN + ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC);
+        LogUtils.d(TAG, "checkAndSetVideoCaptureState isEnableCamera: " + isEnableCamera + ", isPreview: " + isPreview + ", mCdnPublishStreamInfoMap: " + mCdnPublishStreamInfoMap + ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC);
         if (!isEnableCamera // 关闭摄像头
-                || (!isPreview && mPublishStreamInfoCDN == null && mPublishStreamInfoRTC == null)) { // 没有预览并且没有推流
+                || (!isPreview && mCdnPublishStreamInfoMap.isEmpty() && mPublishStreamInfoRTC == null)) { // 没有预览并且没有推流
             mCameraCapture.stop();
         } else {
             mCameraCapture.start();
@@ -491,33 +512,25 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      * @param height  视频的高
      * @param fps     视频的编码帧率
      * @param bitrate 视频的编码码率
-     * @param type    设置主辅流类型 1、主流  2、辅流  3、同时设置
+     * @param channel 设置推流通道类型，null 表示同时设置
      */
-    public void setVideoConfig(int width, int height, int fps, int bitrate, int type) {
+    public void setVideoConfig(int width, int height, int fps, int bitrate, ZegoPublishChannel channel) {
         LogUtils.i(TAG, "setVideoConfig width: " + width + ", height: " + height + ", fps: " + fps + ", bitrate: " + bitrate);
         ZegoVideoConfig videoConfig = new ZegoVideoConfig();
         videoConfig.encodeWidth = width;
         videoConfig.encodeHeight = height;
         videoConfig.fps = fps;
         videoConfig.bitrate = bitrate;
-        if (type == 1) {
-            mExpressEngine.setVideoConfig(videoConfig, ZegoPublishChannel.MAIN);
-        } else if (type == 2) {
-            mExpressEngine.setVideoConfig(videoConfig, ZegoPublishChannel.AUX);
+        if (channel != null) {
+            mExpressEngine.setVideoConfig(videoConfig, channel);
         } else {
             mExpressEngine.setVideoConfig(videoConfig, ZegoPublishChannel.MAIN);
             mExpressEngine.setVideoConfig(videoConfig, ZegoPublishChannel.AUX);
+            mExpressEngine.setVideoConfig(videoConfig, ZegoPublishChannel.THIRD);
+            mExpressEngine.setVideoConfig(videoConfig, ZegoPublishChannel.FOURTH);
+
         }
         AnalyticsLog.INSTANCE.reportMakeupModelInfo(bitrate + "", fps + "", width + "*" + height);
-    }
-
-    /**
-     * 设置音频编码参数
-     */
-    public void setAudioConfig() {
-        ZegoAudioConfig audioConfig = new ZegoAudioConfig();
-        audioConfig.codecID = ZegoAudioCodecID.LOW3;
-        mExpressEngine.setAudioConfig(audioConfig, ZegoPublishChannel.MAIN);
     }
 
     /**
@@ -535,8 +548,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     /**
      * 设置编码的 gop大小，单位秒
      * 目前只会作用于cdn
-     *
-     * @param mGopSize
      */
     public void setGopSize(int mGopSize) {
         if (mGopSize < 2) {
@@ -566,12 +577,14 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
     public static class JoinLiveBuilder {
         private final String roomID;
-        private final Map<StreamType, UserStreamInfo> publishStreamInfos;
+        private UserStreamInfo rtcPublishStreamInfo;
+        private final Map<ZegoPublishChannel, UserStreamInfo> cdnPublishStreamInfos;
+
         private final List<UserStreamInfo> playStreamInfos;
 
         public JoinLiveBuilder(String roomID) {
             this.roomID = roomID;
-            publishStreamInfos = new HashMap<>();
+            cdnPublishStreamInfos = new HashMap<>();
             playStreamInfos = new ArrayList<>();
         }
 
@@ -580,7 +593,12 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             if (UserStreamInfo.isInvalid(publishStreamInfo)) {
                 return this;
             }
-            this.publishStreamInfos.put(publishStreamInfo.streamType, publishStreamInfo);
+            if (publishStreamInfo.streamType == StreamType.RTC) {
+                rtcPublishStreamInfo = publishStreamInfo;
+                rtcPublishStreamInfo.publishChannel = ZegoPublishChannel.MAIN;
+            } else {
+                cdnPublishStreamInfos.put(publishStreamInfo.publishChannel == null ? ZegoPublishChannel.AUX : publishStreamInfo.publishChannel, publishStreamInfo);
+            }
             return this;
         }
 
@@ -599,7 +617,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         }
 
         public void joinLive() {
-            ZegoEngine.getEngine().joinLive(roomID, publishStreamInfos, playStreamInfos);
+            ZegoEngine.getEngine().joinLive(roomID, rtcPublishStreamInfo, cdnPublishStreamInfos, playStreamInfos);
         }
     }
 
@@ -618,14 +636,15 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     /**
      * 加入直播，并根据配置确认是否推拉流
      *
-     * @param roomID             指定的房间ID，如果当前已经登录房间，内部执行的停止当前的推拉流，然后执行切换房间操作。作为拉流器的时候，roomID 建议规则为 "player-" + 当前用户的UserID。这样子的话，可以避免收到正常房间的流新增删除触发的拉流。
-     * @param publishStreamInfos 推流的配置。null 表示不需要推流。
-     * @param playStreamInfos    预先拉流配置，表示这次登录房间的时候，预先需要拉的流，如果此时在拉别的流，则停止这些流的拉流操作。 null 表示不需要预先拉流。登录房间后，还是会根据 onRoomStreamUpdate 去触发拉流和停止拉流
+     * @param roomID                指定的房间ID，如果当前已经登录房间，内部执行的停止当前的推拉流，然后执行切换房间操作。作为拉流器的时候，roomID 建议规则为 "player-" + 当前用户的UserID。这样子的话，可以避免收到正常房间的流新增删除触发的拉流。
+     * @param rtcPublishStreamInfo  rtc 推流的配置。null 表示不推 RTC 流。rtcPublishStreamInfo 和 cdnPublishStreamInfos 都为 null 的情况下表示不推流
+     * @param cdnPublishStreamInfos cdn 推流的配置。null 表示不推 CDN 流。rtcPublishStreamInfo 和 cdnPublishStreamInfos 都为 null 的情况下表示不推流
+     * @param playStreamInfos       预先拉流配置，表示这次登录房间的时候，预先需要拉的流，如果此时在拉别的流，则停止这些流的拉流操作。 null 表示不需要预先拉流。登录房间后，还是会根据 onRoomStreamUpdate 去触发拉流和停止拉流
      */
-    private void joinLive(String roomID, Map<StreamType, UserStreamInfo> publishStreamInfos, List<UserStreamInfo> playStreamInfos) {
+    private void joinLive(String roomID, UserStreamInfo rtcPublishStreamInfo, Map<ZegoPublishChannel, UserStreamInfo> cdnPublishStreamInfos, List<UserStreamInfo> playStreamInfos) {
         LogUtils.d(TAG, "joinLive roomID: " + roomID + ", mRoomID: " + mRoomID +
-                ", publishStreamInfos: " + publishStreamInfos + ", playStreamInfos: " + playStreamInfos +
-                ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC + ", mPublishStreamInfoCDN: " + mPublishStreamInfoCDN +
+                ", publishStreamInfos: " + rtcPublishStreamInfo + ", cdnPublishStreamInfos: " + cdnPublishStreamInfos + ", playStreamInfos: " + playStreamInfos +
+                ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC + ", mCdnPublishStreamInfoMap: " + mCdnPublishStreamInfoMap +
                 ", mPlayingStreamInfos: " + mPlayingStreamInfos);
         boolean isLoginSameRoom = false;
         isLoginSuccess = false;
@@ -635,17 +654,22 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             mExpressEngine.loginRoom(roomID, mLocalUser, new ZegoRoomConfig());
         } else if (mRoomID.equals(roomID)) {
             if (mPublishStreamInfoRTC != null) {
-                UserStreamInfo publishStreamInfoRTC = publishStreamInfos.get(StreamType.RTC);
-                if (!mPublishStreamInfoRTC.equals(publishStreamInfoRTC) && null != publishStreamInfoRTC) {
+                // 保持之前的逻辑，如果当前的推流地址和要求推流的地址不一样，则停止推流。当没有要求的推流地址，由于登录同一个房间，这里直接忽略。
+                if (!mPublishStreamInfoRTC.equals(rtcPublishStreamInfo) && null != rtcPublishStreamInfo) {
                     stopPublish(mPublishStreamInfoRTC);
                     // 如果 RTC 流地址不一样，停止转推
                     removePublishCdnUrlIfNeed();
                 }
             }
-            if (mPublishStreamInfoCDN != null) {
-                UserStreamInfo publishStreamInfoCDN = publishStreamInfos.get(StreamType.CDN);
-                if (!mPublishStreamInfoCDN.equals(publishStreamInfoCDN) && null != publishStreamInfoCDN) {
-                    stopPublish(mPublishStreamInfoCDN);
+            for (int channelIndexValue = ZegoPublishChannel.AUX.value(); channelIndexValue <= ZegoPublishChannel.FOURTH.value(); channelIndexValue++) {
+                ZegoPublishChannel publishChannel = ZegoPublishChannel.getZegoPublishChannel(channelIndexValue);
+                UserStreamInfo currentCdnPublishInfoForChannel = mCdnPublishStreamInfoMap.get(publishChannel);
+                UserStreamInfo publishStreamInfoCDN = cdnPublishStreamInfos.get(publishChannel);
+                // 保持之前的逻辑，如果当前的推流地址和要求推流的地址不一样，则停止推流。当没有要求的推流地址，由于登录同一个房间，这里直接忽略。
+                if (currentCdnPublishInfoForChannel != null // 当前在推流
+                        && !currentCdnPublishInfoForChannel.equals(publishStreamInfoCDN) // 推流的ID跟期望推流的ID不一样
+                        && null != publishStreamInfoCDN) {  // 准备要推流，对于重复登录同一个房间的，只有在使用同一个通道推不同流的情况下，才会停止推流。
+                    stopPublish(currentCdnPublishInfoForChannel);
                 }
             }
             joinLiveSuccess(roomID, User.get().getUserId());
@@ -653,8 +677,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             // 如果是同一个房间，不会执行清除远程视图的逻辑。
         } else {
             if (mPublishStreamInfoRTC != null) {
-                UserStreamInfo publishStreamInfoRTC = publishStreamInfos.get(StreamType.RTC);
-                if (!mPublishStreamInfoRTC.equals(publishStreamInfoRTC)) {
+                if (!mPublishStreamInfoRTC.equals(rtcPublishStreamInfo)) {
                     // 如果 RTC 流地址不一样，停止转推
                     removePublishCdnUrlIfNeed();
                 } else {
@@ -668,7 +691,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
             // 切换房间后，都停止推流了
             mPublishStreamInfoRTC = null;
-            mPublishStreamInfoCDN = null;
+            mCdnPublishStreamInfoMap.clear();
 
             mPlayingStreamInfos.clear(); // 正在拉的流都会停止。
             mRemoteCanvasMap.clear(); // 如果切换房间，则清除远程视图。
@@ -684,7 +707,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             checkAllPlayStreamInfoAndPlay(playStreamInfos);  // 对在拉的流做检测，最终结果只会拉 playStreamInfos 中的流。
         }
 
-        startPublishStreamMap(publishStreamInfos); // 如果 publishStreamInfo != null，则进行拉流
+        startPublishStreams(rtcPublishStreamInfo, cdnPublishStreamInfos); // 如果 publishStreamInfo != null，则进行拉流
 
         checkAndSetVideoCaptureState();
     }
@@ -698,6 +721,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         isEnableCamera = true;
         mExpressEngine.enableCamera(true, ZegoPublishChannel.MAIN);
         mExpressEngine.enableCamera(true, ZegoPublishChannel.AUX);
+        mExpressEngine.enableCamera(true, ZegoPublishChannel.THIRD);
+        mExpressEngine.enableCamera(true, ZegoPublishChannel.FOURTH);
         mCameraCapture.removeColorWatermark();
         // 默认音频采集设备打开
         if (!isEnableAudioCaptureDevice) { // enableAudioCaptureDevice 为同步操作。需要严谨检查
@@ -707,6 +732,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         // 默认推音频
         mExpressEngine.mutePublishStreamAudio(false, ZegoPublishChannel.MAIN);
         mExpressEngine.mutePublishStreamAudio(false, ZegoPublishChannel.AUX);
+        mExpressEngine.mutePublishStreamAudio(false, ZegoPublishChannel.THIRD);
+        mExpressEngine.mutePublishStreamAudio(false, ZegoPublishChannel.FOURTH);
         LogUtils.d(TAG, "resetDeviceState end");
     }
 
@@ -761,15 +788,36 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      * 停止推 RTC 或者 CDN 流
      */
     public void stopPublish(UserStreamInfo publishStreamInfo) {
-        LogUtils.i(TAG, "stopPublish publishStreamInfo: " + publishStreamInfo + ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC + ", mPublishStreamInfoCDN: " + mPublishStreamInfoCDN);
-        if (mPublishStreamInfoRTC != null && mPublishStreamInfoRTC.equals(publishStreamInfo)) {
+        LogUtils.i(TAG, "stopPublish publishStreamInfo: " + publishStreamInfo + ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC + ", mCdnPublishStreamInfoMap: " + mCdnPublishStreamInfoMap);
+        if (publishStreamInfo == null) {
+            return;
+        }
+
+        if ((publishStreamInfo.publishChannel == ZegoPublishChannel.MAIN || publishStreamInfo.publishChannel == null) && // 没有指定，则尝试，有指定，则直接判断
+                mPublishStreamInfoRTC != null && mPublishStreamInfoRTC.equals(publishStreamInfo)) {
             mPublishStreamInfoRTC = null;
             mExpressEngine.stopPublishingStream(ZegoPublishChannel.MAIN);
-        } else if (mPublishStreamInfoCDN != null && mPublishStreamInfoCDN.equals(publishStreamInfo)) {
-            mPublishStreamInfoCDN = null;
-            mExpressEngine.stopPublishingStream(ZegoPublishChannel.AUX);
-            mExpressEngine.stopRecordingCapturedData(ZegoPublishChannel.MAIN);
+        } else if (!mCdnPublishStreamInfoMap.isEmpty() && publishStreamInfo.publishChannel != ZegoPublishChannel.MAIN) { // 如果有 CDN 流在推流，并且没有指定或者指定的是非 main 通道
+            if (publishStreamInfo.publishChannel == null) { // 没有指定 channel，则遍历
+                for (int channelIndexValue = ZegoPublishChannel.AUX.value(); channelIndexValue <= ZegoPublishChannel.FOURTH.value(); channelIndexValue++) {
+                    ZegoPublishChannel publishChannel = ZegoPublishChannel.getZegoPublishChannel(channelIndexValue);
+                    UserStreamInfo currentCdnPublishInfoForChannel = mCdnPublishStreamInfoMap.get(publishChannel);
+                    if (publishStreamInfo.equals(currentCdnPublishInfoForChannel)) { // 找到则停止推流，由于这里没有指定 channel，所以会对所有符合条件的 publishStreamInfo 都执行停止推流
+                        mExpressEngine.stopPublishingStream(publishChannel);
+                        mCdnPublishStreamInfoMap.remove(publishChannel); // 从 map 中移除
+                    }
+                }
+            } else { // 指定了非 main 通道的
+                UserStreamInfo currentCdnPublishInfoForChannel = mCdnPublishStreamInfoMap.get(publishStreamInfo.publishChannel);
+                if (publishStreamInfo.equals(currentCdnPublishInfoForChannel)) { // 跟指定 channel 的 streamInfo 一致，则停止推流
+                    mExpressEngine.stopPublishingStream(publishStreamInfo.publishChannel);
+                    mCdnPublishStreamInfoMap.remove(publishStreamInfo.publishChannel); // 从 map 中移除
+                }
+            }
         }
+
+        // 根据逻辑确认当前是否需要因为辅路音频而进行本地媒体录制
+        stopAudioDataObserverForCdnPublishIfNeed();
     }
 
     /**
@@ -847,9 +895,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             return;
         }
 
-        String cdnTargetUrl = targetURL;
         String streamID = mPublishStreamInfoRTC.target;
-        mExpressEngine.addPublishCdnUrl(mPublishStreamInfoRTC.target, cdnTargetUrl, new IZegoPublisherUpdateCdnUrlCallback() {
+        mExpressEngine.addPublishCdnUrl(mPublishStreamInfoRTC.target, targetURL, new IZegoPublisherUpdateCdnUrlCallback() {
             @Override
             public void onPublisherUpdateCdnUrlResult(int error) {
                 LogUtils.d(TAG, "setPublishCdnUrl onPublisherUpdateCdnUrlResult streamID: " + streamID + ", targetUrl: " + targetURL + ", error: " + error);
@@ -865,6 +912,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         LogUtils.i(TAG, "mutePublishStreamAudio mute: " + mute);
         mExpressEngine.mutePublishStreamAudio(mute, ZegoPublishChannel.MAIN);
         mExpressEngine.mutePublishStreamAudio(mute, ZegoPublishChannel.AUX);
+        mExpressEngine.mutePublishStreamAudio(mute, ZegoPublishChannel.THIRD);
+        mExpressEngine.mutePublishStreamAudio(mute, ZegoPublishChannel.FOURTH);
     }
 
     /**
@@ -968,7 +1017,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private void updateMixerTask() {
         LogUtils.d(TAG, "updateMixerTask mMixerTargetUrl: " + mMixerTargetUrl + ", mMixerConfig: " + mMixerConfig +
                 ", mPlayingStreamInfos: " + mPlayingStreamInfos +
-                ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC + ", mPublishStreamInfoCDN: " + mPublishStreamInfoCDN);
+                ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC);
         if (mMixerTargetUrl.isEmpty()) {
             return;
         }
@@ -999,8 +1048,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
     /**
      * 265 解码
-     *
-     * @return
      */
     public int is265DecoderSupport() {
 //        if (mExpressEngine.isVideoDecoderSupported(ZegoVideoCodecID.H265)){
@@ -1225,7 +1272,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private void reset(boolean isClosePreview) {
         mRoomID = null;
         mPublishStreamInfoRTC = null;
-        mPublishStreamInfoCDN = null;
         mLocalCanvas = null;
         mPublishTargetUrl = null;
         mMixerTargetUrl = null;
@@ -1234,6 +1280,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
         isLoginSuccess = false;
         isPreview = isClosePreview;
+        mCdnPublishStreamInfoMap.clear();
         mPlayingStreamInfos.clear();
         mRemoteCanvasMap.clear();
         mPlayingStreamStateBeans.clear();
@@ -1258,10 +1305,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private void joinLiveFailed(String liveRoomID, long uid, int error) {
         LogUtils.d(TAG, "joinLiveSuccess: liveRoomID: " + liveRoomID + ", uid: " + uid + ", error: " + error);
         // 登录失败，会停止推流和拉流
-        mPublishStreamInfoCDN = null;
-        mPublishStreamInfoRTC = null;
-        mPlayingStreamInfos.clear();
-        mPlayingStreamStateBeans.clear();
+        reset();
         callOnJoinLiveFailed(liveRoomID, uid, error);
     }
 
@@ -1450,9 +1494,14 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         }
     }
 
-    private void startPublishStreamMap(Map<StreamType, UserStreamInfo> publishStreamInfos) {
-        startPublishStream(publishStreamInfos.get(StreamType.RTC));
-        startPublishStream(publishStreamInfos.get(StreamType.CDN));
+    private void startPublishStreams(UserStreamInfo rtcPublishStream, Map<ZegoPublishChannel, UserStreamInfo> cdnPublishStreamInfos) {
+        startPublishStream(rtcPublishStream);
+        for (int channelIndexValue = ZegoPublishChannel.AUX.value(); channelIndexValue <= ZegoPublishChannel.FOURTH.value(); channelIndexValue++) {
+            ZegoPublishChannel publishChannel = ZegoPublishChannel.getZegoPublishChannel(channelIndexValue);
+            startPublishStream(cdnPublishStreamInfos.get(publishChannel));
+        }
+
+        startAudioDataObserverForCdnPublishIfNeed();
     }
 
     private void startPublishStream(UserStreamInfo publishStreamInfo) {
@@ -1472,22 +1521,17 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                     mExpressEngine.startPublishingStream(publishStreamInfo.target, ZegoPublishChannel.MAIN);
                     break;
                 case CDN:
-                    mPublishStreamInfoCDN = publishStreamInfo;
+                    mCdnPublishStreamInfoMap.put(publishStreamInfo.publishChannel, publishStreamInfo);
                     //CDN 开启gopSize和encodeProfile配置
-                    mExpressEngine.callExperimentalAPI(getEncoderProfileJsonStr(mEncodeProfile, ZegoPublishChannel.AUX.value()));
-                    mExpressEngine.callExperimentalAPI(getKeyFrameIntervalJsonStr(mGopSize, ZegoPublishChannel.AUX.value()));
+                    mExpressEngine.callExperimentalAPI(getEncoderProfileJsonStr(mEncodeProfile, publishStreamInfo.publishChannel.value()));
+                    mExpressEngine.callExperimentalAPI(getKeyFrameIntervalJsonStr(mGopSize, publishStreamInfo.publishChannel.value()));
                     String cdnTargetUrl = publishStreamInfo.target;
                     ZegoCDNConfig cdnConfig = new ZegoCDNConfig();
                     cdnConfig.url = cdnTargetUrl;
-                    mExpressEngine.enablePublishDirectToCDN(true, cdnConfig, ZegoPublishChannel.AUX);
+                    mExpressEngine.enablePublishDirectToCDN(true, cdnConfig, publishStreamInfo.publishChannel);
                     String cdnPublishStreamID = getCDNStreamIDUserStreamInfo(publishStreamInfo);
-                    mExpressEngine.startPublishingStream(cdnPublishStreamID, ZegoPublishChannel.AUX);
-                    mExpressEngine.setStreamExtraInfo(STREAM_EXTRA_INFO_CDN_TAG, ZegoPublishChannel.AUX, null);
-
-                    ZegoDataRecordConfig recordConfig = new ZegoDataRecordConfig();
-                    recordConfig.recordType = ZegoDataRecordType.ONLY_AUDIO;
-                    recordConfig.filePath = new File(BaseApplication.getInstance().getExternalCacheDir(), "temp.aac").getAbsolutePath();
-                    mExpressEngine.startRecordingCapturedData(recordConfig, ZegoPublishChannel.MAIN);
+                    mExpressEngine.startPublishingStream(cdnPublishStreamID, publishStreamInfo.publishChannel);
+                    mExpressEngine.setStreamExtraInfo(STREAM_EXTRA_INFO_CDN_TAG, publishStreamInfo.publishChannel, null);
                     break;
                 default:
                     break;
@@ -1692,8 +1736,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
     /**
      * 本地采集的声浪值
-     *
-     * @param soundLevel
      */
     private void capturedSoundLevelUpdate(float soundLevel) {
         for (ZegoEngineEventHandler engineEventHandler : mEventHandlerMap.values()) {
@@ -1710,14 +1752,12 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
     /**
      * 远端采集的声浪值
-     *
-     * @param soundLevels
      */
     private void remoteSoundLevelUpdate(HashMap<String, Float> soundLevels) {
         HashMap<Long, Float> sounds = new HashMap<>();
         for (Map.Entry<String, Float> entry : soundLevels.entrySet()) {
-            if (null != entry.getKey() && null != getPlayingStreamInfoByStreamID(entry.getKey())) {
-                UserStreamInfo info = getPlayingStreamInfoByStreamID(entry.getKey());
+            UserStreamInfo info;
+            if (null != entry.getKey() && (info = getPlayingStreamInfoByStreamID(entry.getKey())) != null) {
                 sounds.put(info.getUserID(), entry.getValue());
             }
         }
@@ -1736,8 +1776,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
     /**
      * 混流多路流监听
-     *
-     * @param soundLevels
      */
     private void mixerSoundLevelUpdate(HashMap<Integer, Float> soundLevels) {
         for (ZegoEngineEventHandler engineEventHandler : mEventHandlerMap.values()) {
@@ -1754,9 +1792,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
     /**
      * 监听接收 SEI 信息的回调, 当发送端调用 sendSEI 发送信息时会触发此回调
-     *
-     * @param streamID
-     * @param data
      */
     private void playerRecvSEI(String streamID, byte[] data) {
         for (ZegoEngineEventHandler engineEventHandler : mEventHandlerMap.values()) {
@@ -1809,8 +1844,11 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         frameParam.strides[1] = width;
         frameParam.format = ZegoVideoFrameFormat.getZegoVideoFrameFormat(format);
         mExpressEngine.sendCustomVideoCaptureRawData(mCaptureDataByteBuffer, data.length, frameParam, timestamp, ZegoPublishChannel.MAIN);
-        if (mPublishStreamInfoCDN != null) {
-            mExpressEngine.sendCustomVideoCaptureRawData(mCaptureDataByteBuffer, data.length, frameParam, timestamp, ZegoPublishChannel.AUX);
+
+        if (!mCdnPublishStreamInfoMap.isEmpty()) {
+            for (ZegoPublishChannel publishChannel : mCdnPublishStreamInfoMap.keySet()) {
+                mExpressEngine.sendCustomVideoCaptureRawData(mCaptureDataByteBuffer, data.length, frameParam, timestamp, publishChannel);
+            }
         }
     }
 
@@ -1835,6 +1873,10 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
          */
         private final String target;
         private final StreamType streamType;
+        /**
+         * 推流通道，不设置默认为 aux 通道
+         */
+        private ZegoPublishChannel publishChannel;
         private boolean is265Encoder;
         private boolean is265Decoder;
 
@@ -1842,6 +1884,21 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             this.userID = userID;
             this.target = target;
             this.streamType = streamType;
+        }
+
+        /**
+         * 设置推流通道，只能设置 AUX、THIRD、FOURTH 通道，不设置默认为 aux 通道
+         */
+        public void setPublishChannel(ZegoPublishChannel publishChannel) {
+            if (publishChannel == ZegoPublishChannel.MAIN) {
+                // 不能设置为 main 通道
+                return;
+            }
+            this.publishChannel = publishChannel;
+        }
+
+        public ZegoPublishChannel getPublishChannel() {
+            return publishChannel;
         }
 
         public boolean is265Encoder() {
@@ -1860,6 +1917,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             this.is265Decoder = is265Decoder;
         }
 
+        /**
+         * equals 方法，仅对重要信息，userID、target 和 streamType，并没有对 publishChannel 进行判断。因此在使用 equals 方法进行判断的时候需要注意。
+         */
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -1880,6 +1940,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                     "userID=" + userID +
                     ", target='" + target + '\'' +
                     ", streamType=" + streamType +
+                    ", publishChannel=" + publishChannel +
+                    ", is265Encoder=" + is265Encoder +
                     '}';
         }
 
