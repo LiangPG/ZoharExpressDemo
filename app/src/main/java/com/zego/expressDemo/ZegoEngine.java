@@ -29,6 +29,7 @@ import com.zego.expressDemo.videocapture.IZegoVideoFrameConsumer;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,6 +55,7 @@ import im.zego.zegoexpress.constants.ZegoAudioSourceType;
 import im.zego.zegoexpress.constants.ZegoAudioVADStableStateMonitorType;
 import im.zego.zegoexpress.constants.ZegoAudioVADType;
 import im.zego.zegoexpress.constants.ZegoDataRecordState;
+import im.zego.zegoexpress.constants.ZegoDataRecordType;
 import im.zego.zegoexpress.constants.ZegoPlayerState;
 import im.zego.zegoexpress.constants.ZegoPublishChannel;
 import im.zego.zegoexpress.constants.ZegoPublisherState;
@@ -185,6 +187,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
     private boolean isPreview;
     private boolean isEnableCamera = true;
+    private boolean isStartAudioRecord = false;
+    private boolean isStartAudioRecordForCDNPublish = false;
     private boolean isEnableAudioCaptureDevice = true;
     private ZegoCanvas mLocalCanvas;
     private final Map<Long, ZegoCanvas> mRemoteCanvasMap;
@@ -352,8 +356,11 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             @Override
             public void onProcessCapturedAudioData(ByteBuffer data, int dataLength, ZegoAudioFrameParam param, double timestamp) {
                 if (!mCdnPublishStreamInfoMap.isEmpty()) {
-                    for (ZegoPublishChannel publishChannel : mCdnPublishStreamInfoMap.keySet()) {
-                        mExpressEngine.sendCustomAudioCapturePCMData(data, dataLength, param, publishChannel);
+                    for (int channelIndexValue = ZegoPublishChannel.AUX.value(); channelIndexValue <= ZegoPublishChannel.FOURTH.value(); channelIndexValue++) {
+                        ZegoPublishChannel publishChannel = ZegoPublishChannel.getZegoPublishChannel(channelIndexValue);
+                        if (mCdnPublishStreamInfoMap.containsKey(publishChannel)) { // 这里有线程安全问题
+                            mExpressEngine.sendCustomAudioCapturePCMData(data, dataLength, param, publishChannel);
+                        }
                     }
                 }
             }
@@ -431,6 +438,15 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      * 开始录制
      */
     public void startRecordingCaptured(ZegoDataRecordConfig recordConfig) {
+        if (isStartAudioRecord) {
+            LogUtils.i(TAG, "startRecordingCaptured isStartAudioRecord true");
+            return;
+        }
+        isStartAudioRecord = true;
+
+        // 先停止由于 CDN 推流导致的录制（强制）
+        stopRecordCapturedDataForCDNPublishInner();
+
         mExpressEngine.startRecordingCapturedData(recordConfig, ZegoPublishChannel.MAIN);
         mExpressEngine.setDataRecordEventHandler(new IZegoDataRecordEventHandler() {
 
@@ -450,19 +466,42 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      * 停止录制
      */
     public void stopRecordingCaptured() {
+        if (!isStartAudioRecord) {
+            return;
+        }
         mExpressEngine.stopRecordingCapturedData(ZegoPublishChannel.MAIN);
         mExpressEngine.setDataRecordEventHandler(null);
+
+        isStartAudioRecord = false;
+
+        startRecordCapturedDataForCDNPublishIfNeed();
     }
 
-    private void startAudioDataObserverForCdnPublishIfNeed() {
-        if (!mCdnPublishStreamInfoMap.isEmpty()) {
-            mExpressEngine.startAudioDataObserver(ZegoAudioDataCallbackBitMask.CAPTURED.value(), new ZegoAudioFrameParam());
+    private void startRecordCapturedDataForCDNPublishIfNeed() {
+        if (isStartAudioRecord || isStartAudioRecordForCDNPublish || mPublishStreamInfoRTC != null || mCdnPublishStreamInfoMap.isEmpty()) { // 已经在录制了，或者主路在推流，或者不需要推 CDN
+            return;
+        }
+        LogUtils.d(TAG, "-->:: startRecordCapturedDataForCDNPublishIfNeed");
+        ZegoDataRecordConfig recordConfig = new ZegoDataRecordConfig();
+        recordConfig.recordType = ZegoDataRecordType.ONLY_AUDIO;
+        recordConfig.filePath = new File(BaseApplication.getInstance().getExternalCacheDir(), "temp.aac").getAbsolutePath();
+        mExpressEngine.startRecordingCapturedData(recordConfig, ZegoPublishChannel.MAIN);
+
+        isStartAudioRecordForCDNPublish = true;
+    }
+
+    private void stopRecordCapturedDataForCDNPublishIfNeed() {
+        // 外部没有启动录制的情况下，并且没有推主路并且没有推辅路的情况下，停止 cdn 音频推流的录制
+        if (!isStartAudioRecord && mPublishStreamInfoRTC == null && mCdnPublishStreamInfoMap.isEmpty()) {
+            stopRecordCapturedDataForCDNPublishInner();
         }
     }
 
-    private void stopAudioDataObserverForCdnPublishIfNeed() {
-        if (mCdnPublishStreamInfoMap.isEmpty()) {
-            mExpressEngine.startAudioDataObserver(ZegoAudioDataCallbackBitMask.CAPTURED.value(), new ZegoAudioFrameParam());
+    private void stopRecordCapturedDataForCDNPublishInner() { // TODO check
+        LogUtils.d(TAG, "-->:: stopRecordCapturedDataForCDNPublishInner isStartAudioRecordForCDNPublish: " + isStartAudioRecordForCDNPublish);
+        if (isStartAudioRecordForCDNPublish) {
+            mExpressEngine.stopRecordingCapturedData(ZegoPublishChannel.MAIN);
+            isStartAudioRecordForCDNPublish = false;
         }
     }
 
@@ -832,7 +871,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         }
 
         // 根据逻辑确认当前是否需要因为辅路音频而进行本地媒体录制
-        stopAudioDataObserverForCdnPublishIfNeed();
+        startRecordCapturedDataForCDNPublishIfNeed();
+        stopRecordCapturedDataForCDNPublishIfNeed();
     }
 
     /**
@@ -1516,7 +1556,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             startPublishStream(cdnPublishStreamInfos.get(publishChannel));
         }
 
-        startAudioDataObserverForCdnPublishIfNeed();
+        startRecordCapturedDataForCDNPublishIfNeed();
     }
 
     private void startPublishStream(UserStreamInfo publishStreamInfo) {
@@ -1861,8 +1901,11 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         mExpressEngine.sendCustomVideoCaptureRawData(mCaptureDataByteBuffer, data.length, frameParam, timestamp, ZegoPublishChannel.MAIN);
 
         if (!mCdnPublishStreamInfoMap.isEmpty()) {
-            for (ZegoPublishChannel publishChannel : mCdnPublishStreamInfoMap.keySet()) {
-                mExpressEngine.sendCustomVideoCaptureRawData(mCaptureDataByteBuffer, data.length, frameParam, timestamp, publishChannel);
+            for (int channelIndexValue = ZegoPublishChannel.AUX.value(); channelIndexValue <= ZegoPublishChannel.FOURTH.value(); channelIndexValue++) {
+                ZegoPublishChannel publishChannel = ZegoPublishChannel.getZegoPublishChannel(channelIndexValue);
+                if (mCdnPublishStreamInfoMap.containsKey(publishChannel)) { // 这里有线程安全问题
+                    mExpressEngine.sendCustomVideoCaptureRawData(mCaptureDataByteBuffer, data.length, frameParam, timestamp, publishChannel);
+                }
             }
         }
     }
