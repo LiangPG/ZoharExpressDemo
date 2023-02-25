@@ -38,6 +38,7 @@ import java.util.Objects;
 
 import im.zego.zegoexpress.ZegoExpressEngine;
 import im.zego.zegoexpress.callback.IZegoAudioDataHandler;
+import im.zego.zegoexpress.callback.IZegoCustomAudioProcessHandler;
 import im.zego.zegoexpress.callback.IZegoDataRecordEventHandler;
 import im.zego.zegoexpress.callback.IZegoEventHandler;
 import im.zego.zegoexpress.callback.IZegoMixerStartCallback;
@@ -69,6 +70,7 @@ import im.zego.zegoexpress.entity.ZegoAudioFrameParam;
 import im.zego.zegoexpress.entity.ZegoCDNConfig;
 import im.zego.zegoexpress.entity.ZegoCanvas;
 import im.zego.zegoexpress.entity.ZegoCustomAudioConfig;
+import im.zego.zegoexpress.entity.ZegoCustomAudioProcessConfig;
 import im.zego.zegoexpress.entity.ZegoCustomVideoCaptureConfig;
 import im.zego.zegoexpress.entity.ZegoDataRecordConfig;
 import im.zego.zegoexpress.entity.ZegoDataRecordProgress;
@@ -344,9 +346,22 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         mExpressEngine.enableCustomVideoCapture(true, customVideoCaptureConfig, ZegoPublishChannel.FOURTH);
         mExpressEngine.setCustomVideoCaptureHandler(mCameraCapture);
 
+        // 启动外部音频前处理
+        mExpressEngine.enableCustomAudioCaptureProcessing(true, new ZegoCustomAudioProcessConfig());
+        mExpressEngine.setCustomAudioProcessHandler(new IZegoCustomAudioProcessHandler() {
+            @Override
+            public void onProcessCapturedAudioData(ByteBuffer data, int dataLength, ZegoAudioFrameParam param, double timestamp) {
+                if (!mCdnPublishStreamInfoMap.isEmpty()) {
+                    for (ZegoPublishChannel publishChannel : mCdnPublishStreamInfoMap.keySet()) {
+                        mExpressEngine.sendCustomAudioCapturePCMData(data, dataLength, param, publishChannel);
+                    }
+                }
+            }
+        });
+
         // CDN 流音频来源
         ZegoCustomAudioConfig audioConfig = new ZegoCustomAudioConfig();
-        audioConfig.sourceType = ZegoAudioSourceType.DEFAULT; // TODO ??
+        audioConfig.sourceType = ZegoAudioSourceType.CUSTOM;
         mExpressEngine.enableCustomAudioIO(true, audioConfig, ZegoPublishChannel.AUX);
         mExpressEngine.enableCustomAudioIO(true, audioConfig, ZegoPublishChannel.THIRD);
         mExpressEngine.enableCustomAudioIO(true, audioConfig, ZegoPublishChannel.FOURTH);
