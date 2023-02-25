@@ -1,6 +1,8 @@
 package com.zego.expressDemo;
 
+import android.content.Context;
 import android.hardware.Camera;
+import android.media.AudioManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -43,6 +45,7 @@ import im.zego.zegoexpress.callback.IZegoMixerStartCallback;
 import im.zego.zegoexpress.callback.IZegoMixerStopCallback;
 import im.zego.zegoexpress.callback.IZegoPublisherTakeSnapshotCallback;
 import im.zego.zegoexpress.callback.IZegoPublisherUpdateCdnUrlCallback;
+import im.zego.zegoexpress.constants.ZegoANSMode;
 import im.zego.zegoexpress.constants.ZegoAudioChannel;
 import im.zego.zegoexpress.constants.ZegoAudioCodecID;
 import im.zego.zegoexpress.constants.ZegoAudioDataCallbackBitMask;
@@ -86,7 +89,7 @@ import im.zego.zegoexpress.utils.ZegoLibraryLoadUtil;
 /**
  * 外部采集设计思路：
  * 1、一个采集类多路输出源。
- * 2、生命周期由 com.zego.expressDemo.ZegoEngine 全程管控。
+ * 2、生命周期由 ZegoEngine 全程管控。
  * 3、统一通过主路流的预览能力来实现预览。
  * 4、enableCamera 和 setDummyImage 能力是耦合的。所以 enableCamera 需要控制主辅路。
  * 生命周期控制时机：
@@ -112,6 +115,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     public static final String EVENT_HANDLER_KEY_WAIT_SITING = "sit_waiting";
     public static final String EVENT_HANDLER_KEY_PK_1 = "live_pk_1";
     public static final String EVENT_HANDLER_KEY_PK_2 = "live_pk_2";
+    public static final String EVENT_HANDLER_KEY_LINE = "live_line_";
+    public static final String EVENT_LIVE_ROOM_AUDIENCE = "live_room_audience";
+    public static final String EVENT_LIVE_PLAY = "live_play";
 
     private static final String STREAM_EXTRA_INFO_CDN_TAG = "CDN";
     private static final String CDN_STREAM_ID_PREFIX = "CDN_";
@@ -191,7 +197,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private int mGopSize = 2; // sdk 默认的gop size 为2
 
     private ZegoEngine() {
-        LogUtils.i(TAG, "com.zego.expressDemo.ZegoEngine() init");
+        LogUtils.i(TAG, "ZegoEngine() init");
         mEventHandlerMap = new HashMap<>();
         mPlayingStreamInfos = new ArrayList<>();
         mRemoteCanvasMap = new HashMap<>();
@@ -287,6 +293,10 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                             playerRenderVideoFirstFrame(getPlayingStreamInfoByStreamID(streamID));
                         }
 
+                        public void onDeviceError(int errorCode, String deviceName) {
+                            LogUtils.d("onDeviceError errorCode = $errorCode  deviceName = $deviceName");
+                        }
+
                         @Override
                         public void onCapturedSoundLevelUpdate(float soundLevel) {
                             capturedSoundLevelUpdate(soundLevel);
@@ -320,7 +330,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                         }
                     });
 
-        } catch (Exception e) {
+        } catch (UnsatisfiedLinkError e) {
             ensureSoLoaded();
             throw e;
         }
@@ -545,6 +555,13 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      */
     public void sendSEI(byte[] bytes) {
         mExpressEngine.sendSEI(bytes);
+    }
+
+    /**
+     * 发送媒体增强补充信息
+     */
+    public void sendSEI(byte[] bytes, ZegoPublishChannel channel) {
+        mExpressEngine.sendSEI(bytes, channel);
     }
 
     public static class JoinLiveBuilder {
@@ -780,6 +797,10 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      * @param playStreamInfo 拉流信息
      */
     public void startPlayStreamRtc(UserStreamInfo playStreamInfo) {
+        if (mPlayingStreamInfos.contains(playStreamInfo)) {
+            LogUtils.d(TAG, "startPlayRtcStream playStreamInfo has already playing");
+            return;
+        }
         startPlayStreamInner(playStreamInfo, false);
     }
 
@@ -872,14 +893,23 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     }
 
     /**
+     * 主动更新混流参数
+     */
+    public void updateMixerTaskConfig(MixerConfig config) {
+        LogUtils.i(TAG, "updateMixerTaskConfig config: " + config);
+        mMixerConfig = config;
+        updateMixerTask();
+    }
+
+    /**
      * 开/关噪声抑制
      *
      * @param enable 开关
      */
     public void enableANS(boolean enable) {
         LogUtils.i(TAG, "enableANS ");
-//        mExpressEngine.enableANS(enable);
-//        mExpressEngine.setANSMode(ZegoANSMode.AI);
+        mExpressEngine.enableANS(enable);
+        mExpressEngine.setANSMode(ZegoANSMode.AI);
     }
 
     /**
@@ -948,6 +978,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         mixerTask.setVideoConfig(mMixerConfig.videoConfig);
         mixerTask.setWatermark(mMixerConfig.mZegoWatermark);
         mixerTask.setInputList(getValidMixerInputList(mMixerConfig.inputList));
+        if (!TextUtils.isEmpty(mMixerConfig.backgroundImageURL)) {
+            mixerTask.setBackgroundImageURL(mMixerConfig.backgroundImageURL);
+        }
 
         final String outputTarget = mMixerTargetUrl;
         ZegoMixerOutput zegoMixerOutput = new ZegoMixerOutput(outputTarget);
@@ -956,7 +989,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         mixerTask.setOutputList(outputList);
 
         mixerTask.setBackgroundColor(mMixerConfig.backgroundColor);
-
         mExpressEngine.startMixerTask(mixerTask, new IZegoMixerStartCallback() {
             @Override
             public void onMixerStartResult(int error, JSONObject extendedData) {
@@ -1658,6 +1690,11 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         }
     }
 
+    /**
+     * 本地采集的声浪值
+     *
+     * @param soundLevel
+     */
     private void capturedSoundLevelUpdate(float soundLevel) {
         for (ZegoEngineEventHandler engineEventHandler : mEventHandlerMap.values()) {
             if (engineEventHandler != null) {
@@ -1672,7 +1709,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     }
 
     /**
-     * 远端流监听
+     * 远端采集的声浪值
      *
      * @param soundLevels
      */
@@ -1828,8 +1865,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             UserStreamInfo that = (UserStreamInfo) o;
-            return userID == that.userID &&
-                    target.equals(that.target) &&
+            return userID == that.userID && TextUtils.equals(target, that.target) &&
                     streamType == that.streamType;
         }
 
@@ -1899,5 +1935,16 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             }
         }
 
+    }
+
+    /**
+     * 切换到蓝牙
+     */
+    public static void changeToHeadset() {
+        AudioManager mAudioManager = (AudioManager) BaseApplication.getInstance().getSystemService(Context.AUDIO_SERVICE);
+        mAudioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+        mAudioManager.startBluetoothSco();
+        mAudioManager.setBluetoothScoOn(true);
+        mAudioManager.setSpeakerphoneOn(false);
     }
 }
