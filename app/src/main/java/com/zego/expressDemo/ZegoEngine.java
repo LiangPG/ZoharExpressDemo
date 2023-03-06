@@ -491,8 +491,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     }
 
     private void stopRecordCapturedDataForCDNPublishIfNeed() {
-        // 外部没有启动录制的情况下，并且没有推主路并且没有推辅路的情况下，停止 cdn 音频推流的录制
-        if (!isStartAudioRecord && mPublishStreamInfoRTC == null && mCdnPublishStreamInfoMap.isEmpty()) {
+        // 外部启动了录制，或者主路流在推，或者 CDN 列表没有的情况下，需要尝试停止内部音频驱动录制
+        if (isStartAudioRecord || mPublishStreamInfoRTC != null || mCdnPublishStreamInfoMap.isEmpty()) {
             stopRecordCapturedDataForCDNPublishInner();
         }
     }
@@ -1332,6 +1332,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         mMixerTargetUrl = null;
         mMixerTargetUrlWithPriority = null;
         mMixerConfig = null;
+
+        isStartAudioRecord = false;
+        isStartAudioRecordForCDNPublish = false;
 
         isLoginSuccess = false;
         isPreview = isClosePreview;
