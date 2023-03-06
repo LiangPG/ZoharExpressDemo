@@ -438,8 +438,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      * 开始录制
      */
     public void startRecordingCaptured(ZegoDataRecordConfig recordConfig) {
+        LogUtils.i(TAG, "startRecordingCaptured isStartAudioRecord: " + isStartAudioRecord);
         if (isStartAudioRecord) {
-            LogUtils.i(TAG, "startRecordingCaptured isStartAudioRecord true");
             return;
         }
         isStartAudioRecord = true;
@@ -466,6 +466,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      * 停止录制
      */
     public void stopRecordingCaptured() {
+        LogUtils.i(TAG, "stopRecordingCaptured isStartAudioRecord: " + isStartAudioRecord);
         if (!isStartAudioRecord) {
             return;
         }
@@ -478,10 +479,10 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     }
 
     private void startRecordCapturedDataForCDNPublishIfNeed() {
+        LogUtils.d(TAG, "startRecordCapturedDataForCDNPublishIfNeed isStartAudioRecord: " + isStartAudioRecord + " ,isStartAudioRecordForCDNPublish: " + isStartAudioRecordForCDNPublish + ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC + ", mCdnPublishStreamInfoMap: " + mCdnPublishStreamInfoMap);
         if (isStartAudioRecord || isStartAudioRecordForCDNPublish || mPublishStreamInfoRTC != null || mCdnPublishStreamInfoMap.isEmpty()) { // 已经在录制了，或者主路在推流，或者不需要推 CDN
             return;
         }
-        LogUtils.d(TAG, "-->:: startRecordCapturedDataForCDNPublishIfNeed");
         ZegoDataRecordConfig recordConfig = new ZegoDataRecordConfig();
         recordConfig.recordType = ZegoDataRecordType.ONLY_AUDIO;
         recordConfig.filePath = new File(BaseApplication.getInstance().getExternalCacheDir(), "temp.aac").getAbsolutePath();
@@ -497,8 +498,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         }
     }
 
-    private void stopRecordCapturedDataForCDNPublishInner() { // TODO check
-        LogUtils.d(TAG, "-->:: stopRecordCapturedDataForCDNPublishInner isStartAudioRecordForCDNPublish: " + isStartAudioRecordForCDNPublish);
+    private void stopRecordCapturedDataForCDNPublishInner() {
+        LogUtils.d(TAG, "stopRecordCapturedDataForCDNPublishInner isStartAudioRecordForCDNPublish: " + isStartAudioRecordForCDNPublish);
         if (isStartAudioRecordForCDNPublish) {
             mExpressEngine.stopRecordingCapturedData(ZegoPublishChannel.MAIN);
             isStartAudioRecordForCDNPublish = false;
