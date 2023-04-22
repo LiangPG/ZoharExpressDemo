@@ -4,7 +4,7 @@ android {
     compileSdkVersion 33
 
     defaultConfig {
-        applicationId "com.zego.expressDemo_test"
+        applicationId "com.zego.expressDemo"
         minSdkVersion 17
         targetSdkVersion 33
         versionCode 1
