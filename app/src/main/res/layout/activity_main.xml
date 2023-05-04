@@ -1,99 +1,208 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/root_layout"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
 
-    <TextureView
-        android:id="@+id/ttv"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+    <RadioGroup
+        android:id="@+id/rg_range_audio_mode"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:orientation="horizontal">
 
-    <RelativeLayout
-        android:id="@+id/rl_btn"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-        <Button
-            android:id="@+id/btn_start_publish"
+        <RadioButton
+            android:id="@+id/rb_range_audio_world"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="startPublish"
-            android:text="开始推流" />
+            android:text="世界" />
 
-        <Button
-            android:id="@+id/btn_start_publish2"
+        <RadioButton
+            android:id="@+id/rb_range_audio_team"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/btn_start_publish"
-            android:onClick="startPublish2"
-            android:text="开始推流2" />
+            android:text="仅小队" />
 
-        <Button
-            android:id="@+id/btn_stop_publish"
+        <RadioButton
+            android:id="@+id/rb_range_audio_secret_team"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:onClick="stopPublish"
-            android:text="停止推流" />
+            android:text="隐秘小队" />
+    </RadioGroup>
 
-        <Button
-            android:id="@+id/btn_start_play"
-            android:layout_below="@+id/btn_start_publish2"
+    <RadioGroup
+        android:id="@+id/rg_orientation"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/rg_range_audio_mode"
+        android:layout_centerHorizontal="true"
+        android:orientation="horizontal">
+
+        <RadioButton
+            android:id="@+id/rb_orientation_positive_x"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="startPlay"
-            android:text="开始拉流" />
+            android:text="东" />
 
-        <Button
-            android:id="@+id/btn_stop_play"
-            android:layout_below="@+id/btn_start_publish2"
+        <RadioButton
+            android:id="@+id/rb_orientation_negative_y"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:onClick="stopPlay"
-            android:text="停止拉流" />
+            android:text="南" />
 
-        <Button
-            android:id="@+id/btn_start_play2"
-            android:layout_below="@+id/btn_start_play"
+        <RadioButton
+            android:id="@+id/rb_orientation_negative_x"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="startPlay2"
-            android:text="开始拉流2" />
+            android:text="西" />
 
-        <Button
-            android:id="@+id/btn_stop_play2"
-            android:layout_below="@+id/btn_start_play"
+        <RadioButton
+            android:id="@+id/rb_orientation_positive_y"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:onClick="stopPlay2"
-            android:text="停止拉流2" />
+            android:text="北" />
+    </RadioGroup>
 
-        <Button
-            android:id="@+id/btn_feature"
-            android:layout_below="@+id/btn_stop_play2"
+    <RadioGroup
+        android:id="@+id/rg_position_mode"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/rg_orientation"
+        android:layout_centerHorizontal="true"
+        android:orientation="horizontal">
+
+        <RadioButton
+            android:id="@+id/rb_position_positive_x"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:onClick="customFeature"
-            android:text="customFeature" />
+            android:text="+X" />
 
-        <Button
-            android:id="@+id/btn_login_room"
+        <RadioButton
+            android:id="@+id/rb_position_negative_x"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="loginRoom"
-            android:layout_alignParentBottom="true"
-            android:text="登录房间" />
+            android:text="-X" />
 
-        <Button
+        <RadioButton
+            android:id="@+id/rb_position_positive_y"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="logoutRoom"
-            android:layout_alignParentBottom="true"
-            android:layout_alignParentEnd="true"
-            android:text="退出房间" />
-    </RelativeLayout>
-</FrameLayout>
+            android:text="+Y" />
+
+        <RadioButton
+            android:id="@+id/rb_position_negative_y"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="-Y" />
+    </RadioGroup>
+
+    <SeekBar
+        android:id="@+id/sb_distance"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/rg_position_mode"
+        android:layout_centerHorizontal="true" />
+
+    <TextView
+        android:id="@+id/tv_speak_mode"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/sb_distance"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="30dp"
+        android:text="发音模式："/>
+
+    <RadioGroup
+        android:id="@+id/rg_speak_mode"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/tv_speak_mode"
+        android:layout_centerHorizontal="true"
+        android:orientation="horizontal">
+
+        <RadioButton
+            android:id="@+id/rb_speak_mode_all"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="全部" />
+
+        <RadioButton
+            android:id="@+id/rb_speak_mode_world"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="世界" />
+
+        <RadioButton
+            android:id="@+id/rb_speak_mode_team"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="小队" />
+    </RadioGroup>
+
+    <TextView
+        android:id="@+id/tv_lister_mode"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/rg_speak_mode"
+        android:layout_centerHorizontal="true"
+        android:text="听音模式："/>
+
+    <RadioGroup
+        android:id="@+id/rg_listen_mode"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/tv_lister_mode"
+        android:layout_centerHorizontal="true"
+        android:orientation="horizontal">
+
+        <RadioButton
+            android:id="@+id/rb_listen_mode_all"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="全部" />
+
+        <RadioButton
+            android:id="@+id/rb_listen_mode_world"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="世界" />
+
+        <RadioButton
+            android:id="@+id/rb_listen_mode_team"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="小队" />
+    </RadioGroup>
+
+    <EditText
+        android:id="@+id/et_team_id"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/btn_set_team_id"
+        android:layout_centerHorizontal="true"
+        android:hint="小队名称"
+        android:inputType="text" />
+
+    <Button
+        android:id="@+id/btn_set_team_id"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:text="设置小队名称，当前：" />
+
+    <Button
+        android:id="@+id/btn_select_user"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/btn_set_team_id"
+        android:layout_centerHorizontal="true"
+        android:text="选择位置更新用户" />
+
+    <TextView
+        android:id="@+id/tv_current_select_stream"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/btn_select_user"
+        android:layout_centerHorizontal="true"
+        android:text="我" />
+</RelativeLayout>
