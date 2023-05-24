@@ -133,6 +133,13 @@
         android:layout_toEndOf="@id/v_center"
         android:layout_alignParentEnd="true"/>
 
+    <com.zego.expressDemo.view.WH43TextureView
+        android:id="@+id/ttv_preview"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/ttv_third"
+        android:layout_toStartOf="@id/v_center"/>
+
     <Button
         android:id="@+id/btn_start_record"
         android:layout_width="wrap_content"

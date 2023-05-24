@@ -92,7 +92,7 @@ import im.zego.zegoexpress.utils.ZegoLibraryLoadUtil;
  * 外部采集设计思路：
  * 1、一个采集类多路输出源。
  * 2、生命周期由 ZegoEngine 全程管控。
- * 3、统一通过主路流的预览能力来实现预览。
+ * 3、统一通过辅路流的预览能力来实现预览。因为只有辅路工作的情况下，需要启动主路录制来实现音频数据驱动，此时会触发主路的视频编码，因此需要做限制。
  * 4、enableCamera 和 setDummyImage 能力是耦合的。所以 enableCamera 需要控制主辅路。
  * 生命周期控制时机：
  * 1、enableCamera
@@ -298,10 +298,10 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                             playerRenderVideoFirstFrame(getPlayingStreamInfoByStreamID(streamID));
                         }
 
-                        @Override
-                        public void onDeviceError(int errorCode, String deviceName) {
-                            LogUtils.d("onDeviceError errorCode = $errorCode  deviceName = $deviceName");
-                        }
+//                        @Override
+//                        public void onDeviceError(int errorCode, String deviceName) {
+//                            LogUtils.d("onDeviceError errorCode = $errorCode  deviceName = $deviceName");
+//                        }
 
                         @Override
                         public void onCapturedSoundLevelUpdate(float soundLevel) {
@@ -489,6 +489,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         mExpressEngine.startRecordingCapturedData(recordConfig, ZegoPublishChannel.MAIN);
 
         isStartAudioRecordForCDNPublish = true;
+
+        // 当启动主路的本地媒体录制时，则需要主动关闭主路的摄像头
+        mExpressEngine.enableCamera(false, ZegoPublishChannel.MAIN);
     }
 
     private void stopRecordCapturedDataForCDNPublishIfNeed() {
@@ -503,13 +506,16 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         if (isStartAudioRecordForCDNPublish) {
             mExpressEngine.stopRecordingCapturedData(ZegoPublishChannel.MAIN);
             isStartAudioRecordForCDNPublish = false;
+
+            // 当停止因推辅路 CDN 触发的本地媒体录制，需要按需启停主路摄像头
+            mExpressEngine.enableCamera(isEnableCamera, ZegoPublishChannel.MAIN);
         }
     }
 
     public void stopPreview() {
         LogUtils.i(TAG, "stopPreview isPreview: " + isPreview);
         isPreview = false;
-        mExpressEngine.stopPreview();
+        mExpressEngine.stopPreview(ZegoPublishChannel.AUX);
 
         checkAndSetVideoCaptureState();
     }
@@ -545,7 +551,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         LogUtils.i(TAG, "setLocalVideoCanvas localVideoCanvas: " + localVideoCanvas);
         mLocalCanvas = localVideoCanvas == null ? null : localVideoCanvas.convertToZegoCanvas();
         if (isPreview) {
-            mExpressEngine.startPreview(mLocalCanvas);
+            mExpressEngine.startPreview(mLocalCanvas, ZegoPublishChannel.AUX);
         }
     }
 
@@ -1561,6 +1567,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         }
 
         startRecordCapturedDataForCDNPublishIfNeed();
+        stopRecordCapturedDataForCDNPublishIfNeed();
     }
 
     private void startPublishStream(UserStreamInfo publishStreamInfo) {
@@ -1902,10 +1909,16 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         frameParam.strides[0] = width;
         frameParam.strides[1] = width;
         frameParam.format = ZegoVideoFrameFormat.getZegoVideoFrameFormat(format);
-        mExpressEngine.sendCustomVideoCaptureRawData(mCaptureDataByteBuffer, data.length, frameParam, timestamp, ZegoPublishChannel.MAIN);
+
+        if (isStartAudioRecord || mPublishStreamInfoRTC != null) {
+            mExpressEngine.sendCustomVideoCaptureRawData(mCaptureDataByteBuffer, data.length, frameParam, timestamp, ZegoPublishChannel.MAIN);
+        }
+
+        // 预览通过辅路流进行，因此预览需要不断输入数据
+        mExpressEngine.sendCustomVideoCaptureRawData(mCaptureDataByteBuffer, data.length, frameParam, timestamp, ZegoPublishChannel.AUX);
 
         if (!mCdnPublishStreamInfoMap.isEmpty()) {
-            for (int channelIndexValue = ZegoPublishChannel.AUX.value(); channelIndexValue <= ZegoPublishChannel.FOURTH.value(); channelIndexValue++) {
+            for (int channelIndexValue = ZegoPublishChannel.THIRD.value(); channelIndexValue <= ZegoPublishChannel.FOURTH.value(); channelIndexValue++) {
                 ZegoPublishChannel publishChannel = ZegoPublishChannel.getZegoPublishChannel(channelIndexValue);
                 if (mCdnPublishStreamInfoMap.containsKey(publishChannel)) { // 这里有线程安全问题
                     mExpressEngine.sendCustomVideoCaptureRawData(mCaptureDataByteBuffer, data.length, frameParam, timestamp, publishChannel);

@@ -115,6 +115,8 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
                 }
                 builder.joinLive();
 
+                ZegoEngine.getEngine().startPreview();
+                ZegoEngine.getEngine().setLocalVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_preview), 0));
                 ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_main), ZegoPublishChannel.MAIN.value()));
                 ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_aux), ZegoPublishChannel.AUX.value()));
                 ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_third), ZegoPublishChannel.THIRD.value()));
