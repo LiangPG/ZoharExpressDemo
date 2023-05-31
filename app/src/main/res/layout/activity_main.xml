@@ -110,7 +110,7 @@
         android:layout_below="@id/sb_distance"
         android:layout_centerHorizontal="true"
         android:layout_marginTop="30dp"
-        android:text="发音模式："/>
+        android:text="发音模式：" />
 
     <RadioGroup
         android:id="@+id/rg_speak_mode"
@@ -145,7 +145,7 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/rg_speak_mode"
         android:layout_centerHorizontal="true"
-        android:text="听音模式："/>
+        android:text="听音模式：" />
 
     <RadioGroup
         android:id="@+id/rg_listen_mode"
@@ -173,6 +173,28 @@
             android:layout_height="wrap_content"
             android:text="小队" />
     </RadioGroup>
+
+    <LinearLayout
+        android:id="@+id/ll_player_source"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/rg_listen_mode"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal">
+
+        <CheckBox
+            android:id="@+id/cb_player_a"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="播放器A" />
+
+        <CheckBox
+            android:id="@+id/cb_player_b"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="播放器B" />
+    </LinearLayout>
 
     <EditText
         android:id="@+id/et_team_id"

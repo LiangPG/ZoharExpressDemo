@@ -6,6 +6,8 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.RadioGroup;
 import android.widget.SeekBar;
@@ -16,6 +18,7 @@ import androidx.annotation.Nullable;
 import com.zego.expressDemo.adapter.UserSelectDialog;
 import com.zego.expressDemo.application.BaseApplication;
 import com.zego.expressDemo.data.ZegoDataCenter;
+import com.zego.expressDemo.helper.FileHelper;
 
 import org.json.JSONObject;
 
@@ -23,8 +26,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import im.zego.zegoexpress.ZegoExpressEngine;
+import im.zego.zegoexpress.ZegoMediaPlayer;
 import im.zego.zegoexpress.ZegoRangeAudio;
 import im.zego.zegoexpress.callback.IZegoEventHandler;
+import im.zego.zegoexpress.callback.IZegoMediaPlayerLoadResourceCallback;
 import im.zego.zegoexpress.callback.IZegoRangeAudioEventHandler;
 import im.zego.zegoexpress.constants.ZegoRangeAudioListenMode;
 import im.zego.zegoexpress.constants.ZegoRangeAudioMicrophoneState;
@@ -40,11 +45,15 @@ public class MainActivity extends BaseActivity {
     private final static String TAG = MainActivity.class.getSimpleName();
 
     private final static String AUDIO_RANGE_ROOM_ID = "audio_range";
+    private final static String PLAYER_A_NAME = "player_a";
+    private final static String PLAYER_B_NAME = "player_b";
 
     private final static float AUDIO_RANGE_RECV_RANGE = 50f;
     private final static int AUDIO_RANGE_POSITION_UPDATE_FREQUENCY = 200;
 
     private ZegoExpressEngine mExpressEngine;
+    private ZegoMediaPlayer mMediaPlayerA;
+    private ZegoMediaPlayer mMediaPlayerB;
     private ZegoRangeAudio mRangeAudio;
 
     private UserSelectDialog mUserSelectDialog;
@@ -54,7 +63,8 @@ public class MainActivity extends BaseActivity {
     private EditText mEtTeamID;
     private Button mBtnSetTeamID;
 
-    private int mCurrentDistance;
+    private int mCurrentDistanceX;
+    private int mCurrentDistanceY;
     private int mOrientationMode; // 0: +x, 1: -x, 2: +y, 3: -y
     private int mPositionMode; // 0: +x, 1: -x, 2: +y, 3: -y
 
@@ -142,7 +152,6 @@ public class MainActivity extends BaseActivity {
                 } else if (checkedId == R.id.rb_position_negative_y) {
                     mPositionMode = 3;
                 }
-                updateUserPosition();
             }
         });
         rgPositionMode.check(R.id.rb_position_positive_x);
@@ -185,7 +194,21 @@ public class MainActivity extends BaseActivity {
         sbDistance.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                mCurrentDistance = progress;
+                // 0: +x, 1: -x, 2: +y, 3: -y
+                switch (mPositionMode) {
+                    case 0:
+                        mCurrentDistanceX = progress;
+                        break;
+                    case 1:
+                        mCurrentDistanceX = -progress;
+                        break;
+                    case 2:
+                        mCurrentDistanceY = progress;
+                        break;
+                    case 3:
+                        mCurrentDistanceY = -progress;
+                        break;
+                }
             }
 
             @Override
@@ -218,12 +241,52 @@ public class MainActivity extends BaseActivity {
                 mBtnSetTeamID.setText("设置小队名称，当前：" + teamID);
             }
         });
+
+        ((CheckBox) findViewById(R.id.cb_player_a)).setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    mMediaPlayerA.enableRepeat(true);
+                    mMediaPlayerA.loadResource(FileHelper.copyAssetsFile2Phone(MainActivity.this, "111.aac"), new IZegoMediaPlayerLoadResourceCallback() {
+                        @Override
+                        public void onLoadResourceCallback(int errorCode) {
+                            mMediaPlayerA.start();
+                        }
+                    });
+                    mUserList.add(PLAYER_A_NAME);
+                } else {
+                    mMediaPlayerA.stop();
+                    mUserList.remove(PLAYER_A_NAME);
+                }
+                mUserSelectDialog.notifyDataSetChanged();
+            }
+        });
+
+        ((CheckBox) findViewById(R.id.cb_player_b)).setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    mMediaPlayerB.enableRepeat(true);
+                    mMediaPlayerB.loadResource(FileHelper.copyAssetsFile2Phone(MainActivity.this, "zhuoniqiu.mp3"), new IZegoMediaPlayerLoadResourceCallback() {
+                        @Override
+                        public void onLoadResourceCallback(int errorCode) {
+                            mMediaPlayerB.start();
+                        }
+                    });
+                    mUserList.add(PLAYER_B_NAME);
+                } else {
+                    mMediaPlayerB.stop();
+                    mUserList.remove(PLAYER_B_NAME);
+                }
+                mUserSelectDialog.notifyDataSetChanged();
+            }
+        });
     }
 
     private void updateUserPosition() {
         float[] position = new float[3];
-        position[0] = mPositionMode < 2 ? (mPositionMode % 2 == 0 ? mCurrentDistance : -mCurrentDistance) : 0;
-        position[1] = mPositionMode >= 2 ? (mPositionMode % 2 == 0 ? mCurrentDistance : -mCurrentDistance) : 0;
+        position[0] = mCurrentDistanceY;
+        position[1] = mCurrentDistanceX;
         position[2] = 0;
         if (TextUtils.isEmpty(mSelectUserID)) {
             float[] axisForward = new float[]{
@@ -236,6 +299,10 @@ public class MainActivity extends BaseActivity {
                     0};
             float[] axisUp = new float[]{0, 0, 1};
             mRangeAudio.updateSelfPosition(position, axisForward, axisRight, axisUp);
+        } else if (PLAYER_A_NAME.equals(mSelectUserID)) {
+            mMediaPlayerA.updatePosition(position);
+        } else if (PLAYER_B_NAME.equals(mSelectUserID)) {
+            mMediaPlayerB.updatePosition(position);
         } else {
             mRangeAudio.updateAudioSource(mSelectUserID, position);
         }
@@ -270,6 +337,11 @@ public class MainActivity extends BaseActivity {
 
         mExpressEngine.enableCamera(false);
         mExpressEngine.loginRoom(AUDIO_RANGE_ROOM_ID, ZegoDataCenter.ZEGO_USER);
+
+        mMediaPlayerA = mExpressEngine.createMediaPlayer();
+        mExpressEngine.createMediaPlayer(); // 过滤两个 player，为了测试
+        mExpressEngine.createMediaPlayer();
+        mMediaPlayerB = mExpressEngine.createMediaPlayer();
 
         mRangeAudio = mExpressEngine.createRangeAudio();
         mRangeAudio.setEventHandler(new IZegoRangeAudioEventHandler() {
