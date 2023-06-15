@@ -12,13 +12,17 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.zego.expressDemo.application.BaseApplication;
+import com.zego.expressDemo.bean.GameStreamEntity;
 import com.zego.expressDemo.bean.MixerConfig;
 import com.zego.expressDemo.bean.PlayStreamStateBean;
 import com.zego.expressDemo.bean.ZegoVideoCanvas;
+import com.zego.expressDemo.config.GlobalType;
+import com.zego.expressDemo.config.JavaGlobalConfig;
 import com.zego.expressDemo.data.Constant;
 import com.zego.expressDemo.data.User;
 import com.zego.expressDemo.data.ZegoDataCenter;
 import com.zego.expressDemo.utils.AnalyticsLog;
+import com.zego.expressDemo.utils.JsonUtil;
 import com.zego.expressDemo.utils.LogUtils;
 import com.zego.expressDemo.utils.MD5Utils;
 import com.zego.expressDemo.utils.SPUtils;
@@ -30,6 +34,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -191,7 +196,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private boolean isStartAudioRecordForCDNPublish = false;
     private boolean isEnableAudioCaptureDevice = true;
     private ZegoCanvas mLocalCanvas;
-    private final Map<Long, ZegoCanvas> mRemoteCanvasMap;
+    private final Map<Long, WeakReference<ZegoCanvas>> mRemoteCanvasMap;
 
     private MixerConfig mMixerConfig;
     private String mMixerTargetUrl;
@@ -297,11 +302,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                         public void onPlayerRenderVideoFirstFrame(String streamID) {
                             playerRenderVideoFirstFrame(getPlayingStreamInfoByStreamID(streamID));
                         }
-
-//                        @Override
-//                        public void onDeviceError(int errorCode, String deviceName) {
-//                            LogUtils.d("onDeviceError errorCode = $errorCode  deviceName = $deviceName");
-//                        }
 
                         @Override
                         public void onCapturedSoundLevelUpdate(float soundLevel) {
@@ -558,7 +558,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     public void setRemoteVideoCanvas(ZegoVideoCanvas remoteVideoCanvas) {
         LogUtils.i(TAG, "setRemoteVideoCanvas remoteVideoCanvas: " + remoteVideoCanvas);
         ZegoCanvas canvas = remoteVideoCanvas.convertToZegoCanvas();
-        mRemoteCanvasMap.put(remoteVideoCanvas.uid, canvas);
+        mRemoteCanvasMap.put(remoteVideoCanvas.uid, new WeakReference<>(canvas));
 
         String streamID = getStreamIDByUidIfPlaying(remoteVideoCanvas.uid);
         if (!TextUtils.isEmpty(streamID)) { // 指定的流在拉
@@ -1388,6 +1388,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      */
     private void checkCdnPlayStreamInfoAndPlay(List<UserStreamInfo> needPlayStreamInfos) {
         LogUtils.d(TAG, "checkCdnPlayStreamInfoAndPlay needPlayStreamInfos: " + needPlayStreamInfos);
+        String gameUrlStr = JavaGlobalConfig.getInstance().getConfig(GlobalType.M_2274, "");
+        List<GameStreamEntity> streamList = JsonUtil.parseList(gameUrlStr, GameStreamEntity.class);
         List<UserStreamInfo> copyPlayingStreamInfos = new ArrayList<>(mPlayingStreamInfos);
         for (UserStreamInfo playingStreamInfo : copyPlayingStreamInfos) {
             if (playingStreamInfo.streamType == StreamType.CDN) { // 只对 CDN 流进行停止拉流处理
@@ -1397,6 +1399,18 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                     callPlayStreamStateIfNeed(playingStreamInfo);
                 } else {
                     stopPlayStream(playingStreamInfo);
+                    boolean isHaveSameStream = false;
+                    if (null != streamList && streamList.size() > 0) {
+                        for (GameStreamEntity entity : streamList) {
+                            if (TextUtils.equals(playingStreamInfo.target, entity.getBattleGamePullUrl())) {
+                                isHaveSameStream = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!isHaveSameStream) {
+                        stopPlayStream(playingStreamInfo);
+                    }
                 }
             } else {
                 // RTC 流都需要回调状态
@@ -1535,7 +1549,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         }
         mPlayingStreamStateBeans.put(playStreamInfo, new PlayStreamStateBean());
 
-        ZegoCanvas playCanvas = mRemoteCanvasMap.get(playStreamInfo.userID);
+        WeakReference<ZegoCanvas> playCanvasReference = mRemoteCanvasMap.get(playStreamInfo.userID);
+        ZegoCanvas playCanvas = playCanvasReference == null ? null : playCanvasReference.get();
 
         switch (playStreamInfo.streamType) {
             case RTC:
@@ -1568,6 +1583,10 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
         startRecordCapturedDataForCDNPublishIfNeed();
         stopRecordCapturedDataForCDNPublishIfNeed();
+    }
+
+    public void startPublishRTCStream(UserStreamInfo publishStreamInfo) {
+        startPublishStream(publishStreamInfo);
     }
 
     private void startPublishStream(UserStreamInfo publishStreamInfo) {
@@ -1949,7 +1968,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         private final String target;
         private final StreamType streamType;
         /**
-         * 推流通道，不设置默认为 aux 通道
+         * 推流通道，对于 RTC 流来说，只会是 main 通道，不管设置与否。对于 CDN 流来说，不设置默认为 aux 通道
          */
         private ZegoPublishChannel publishChannel;
         private boolean is265Encoder;
