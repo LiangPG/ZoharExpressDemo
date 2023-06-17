@@ -59,12 +59,14 @@
             android:id="@+id/cb_publish_third"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="publish_third" />
 
         <CheckBox
             android:id="@+id/cb_publish_fourth"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="publish_fourth" />
     </LinearLayout>
 
@@ -94,12 +96,14 @@
             android:id="@+id/cb_play_third"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="play_third" />
 
         <CheckBox
             android:id="@+id/cb_play_fourth"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="play_fourth" />
     </LinearLayout>
 

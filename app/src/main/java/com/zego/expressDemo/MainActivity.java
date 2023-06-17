@@ -82,10 +82,12 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
 
                 isJoinLive = true;
 
-                ZegoEngine.getEngine().setVideoConfig(240, 432, 15, 350, ZegoPublishChannel.MAIN);
-                ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, ZegoPublishChannel.AUX);
-                ZegoEngine.getEngine().setVideoConfig(360, 640, 15, 400, ZegoPublishChannel.THIRD);
-                ZegoEngine.getEngine().setVideoConfig(270, 480, 15, 250, ZegoPublishChannel.FOURTH);
+                ZegoEngine.getEngine().setVideoConfig(240, 432, 15, 350, 1);
+                ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, 2);
+//                ZegoEngine.getEngine().setVideoConfig(240, 432, 15, 350, ZegoPublishChannel.MAIN);
+//                ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, ZegoPublishChannel.AUX);
+//                ZegoEngine.getEngine().setVideoConfig(360, 640, 15, 400, ZegoPublishChannel.THIRD);
+//                ZegoEngine.getEngine().setVideoConfig(270, 480, 15, 250, ZegoPublishChannel.FOURTH);
 
                 ZegoEngine.JoinLiveBuilder builder = ZegoEngine.getLiveBuilder(roomID);
                 if (mCbPublishMain.isChecked()) {
@@ -201,9 +203,10 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
     }
 
     public ZegoEngine.UserStreamInfo getPublishStreamInfo(ZegoPublishChannel channel) {
-        ZegoEngine.UserStreamInfo streamInfo = new ZegoEngine.UserStreamInfo(ZegoDataCenter.ZEGO_USER.getUserId(), getPublishTarget(channel), channel == ZegoPublishChannel.MAIN ? ZegoEngine.StreamType.RTC : ZegoEngine.StreamType.CDN);
-        streamInfo.setPublishChannel(channel);
-        return streamInfo;
+//        ZegoEngine.UserStreamInfo streamInfo = new ZegoEngine.UserStreamInfo(ZegoDataCenter.ZEGO_USER.getUserId(), getPublishTarget(channel), channel == ZegoPublishChannel.MAIN ? ZegoEngine.StreamType.RTC : ZegoEngine.StreamType.CDN);
+//        streamInfo.setPublishChannel(channel);
+//        return streamInfo;
+        return new ZegoEngine.UserStreamInfo(ZegoDataCenter.ZEGO_USER.getUserId(), getPublishTarget(channel), channel == ZegoPublishChannel.MAIN ? ZegoEngine.StreamType.RTC : ZegoEngine.StreamType.CDN);
     }
 
     public ZegoEngine.UserStreamInfo getPlayStreamInfo(ZegoPublishChannel channel) {
