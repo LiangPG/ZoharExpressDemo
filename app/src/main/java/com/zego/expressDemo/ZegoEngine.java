@@ -30,7 +30,6 @@ import com.zego.expressDemo.videocapture.IZegoVideoFrameConsumer;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.File;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -56,7 +55,6 @@ import im.zego.zegoexpress.constants.ZegoAudioSourceType;
 import im.zego.zegoexpress.constants.ZegoAudioVADStableStateMonitorType;
 import im.zego.zegoexpress.constants.ZegoAudioVADType;
 import im.zego.zegoexpress.constants.ZegoDataRecordState;
-import im.zego.zegoexpress.constants.ZegoDataRecordType;
 import im.zego.zegoexpress.constants.ZegoPlayerState;
 import im.zego.zegoexpress.constants.ZegoPublishChannel;
 import im.zego.zegoexpress.constants.ZegoPublisherState;
@@ -112,7 +110,6 @@ import im.zego.zegoexpress.utils.ZegoLibraryLoadUtil;
  * 1、外部采集修改成外部滤镜
  * 2、enableCamera 逻辑修改
  * 3、dummy 逻辑支持
- * 4、多转推 CDN 支持
  * 5、observer 修改
  * 6、确认切换同一个房间，是否需要停止转推。
  * 7、确认 public void startPublishRTCStream 这个接口存在的意义
@@ -146,6 +143,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private static final String SEI_MESSAGE_KEY_LAYOUT_USER_COUNT = "luc";
 
     public static final long TIME_KEEP_STREAM_PUBLISH_IN_MILLS = 3000;
+
+    private static final ZegoAudioSampleRate SAMPLE_RATE_AUDIO_CAPTURE_DATA_OBSERVER = ZegoAudioSampleRate.ZEGO_AUDIO_SAMPLE_RATE_16K;
+    private static final ZegoAudioChannel CHANNEL_COUNT_AUDIO_CAPTURE_DATA_OBSERVER = ZegoAudioChannel.MONO;
 
     private static volatile ZegoEngine sEngine;
 
@@ -195,6 +195,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private boolean isPreview;
     private boolean isEnableCamera = true;
     private boolean isEnableAudioCaptureDevice = true;
+    private boolean isStartAudioCaptureDataObserverInternal = false;
+    private boolean isStartAudioCaptureDataObserverExternal = false;
+
     private ZegoCanvas mLocalCanvas;
     private final Map<Long, WeakReference<ZegoCanvas>> mRemoteCanvasMap;
 
@@ -718,15 +721,14 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
     /**
      * 开启监听音频采集数据
-     *
-     * @param sampleRate   采样率
-     * @param channelCount 声道数
+     * 通过 hardcore 来指定采样率和声道数
      */
-    public void startAudioCaptureDataObserver(int sampleRate, int channelCount, final IZegoAudioCaptureDataHandler dataHandler) {
-        ZegoAudioFrameParam frameParam = new ZegoAudioFrameParam();
-        frameParam.sampleRate = ZegoAudioSampleRate.getZegoAudioSampleRate(sampleRate);
-        frameParam.channel = ZegoAudioChannel.getZegoAudioChannel(channelCount);
-        mExpressEngine.startAudioDataObserver(ZegoAudioDataCallbackBitMask.CAPTURED.value(), frameParam);
+    public void startAudioCaptureDataObserver(final IZegoAudioCaptureDataHandler dataHandler) {
+        LogUtils.i(TAG, "startAudioCaptureDataObserver isStartAudioCaptureDataObserverExternal: " + isStartAudioCaptureDataObserverExternal + ", isStartAudioCaptureDataObserverInternal: " + isStartAudioCaptureDataObserverInternal + ", dataHandler: " + dataHandler);
+
+        startAudioCaptureDataObserverIfNeed();
+        isStartAudioCaptureDataObserverExternal = true;
+
         mExpressEngine.setAudioDataHandler(new IZegoAudioDataHandler() {
             @Override
             public void onCapturedAudioData(ByteBuffer data, int dataLength, ZegoAudioFrameParam param) {
@@ -744,7 +746,11 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      * 停止监听音频采集数据
      */
     public void stopAudioCaptureDataObserver() {
-        mExpressEngine.stopAudioDataObserver();
+        LogUtils.i(TAG, "stopAudioCaptureDataObserver isStartAudioCaptureDataObserverExternal: " + isStartAudioCaptureDataObserverExternal + ", isStartAudioCaptureDataObserverInternal: " + isStartAudioCaptureDataObserverInternal);
+
+        isStartAudioCaptureDataObserverExternal = false;
+        stopAudioCaptureDataObserverIfNeed();
+
         mExpressEngine.setAudioDataHandler(null);
     }
 
@@ -762,7 +768,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         } else if (mPublishStreamInfoCDN != null && mPublishStreamInfoCDN.equals(publishStreamInfo)) {
             mPublishStreamInfoCDN = null;
             mExpressEngine.stopPublishingStream(ZegoPublishChannel.AUX);
-            mExpressEngine.stopRecordingCapturedData(ZegoPublishChannel.MAIN);
+
+            stopAudioCaptureDataObserverInternal();
         }
     }
 
@@ -1187,6 +1194,39 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         });
     }
 
+    private void startAudioCaptureDataObserverInternal() {
+        LogUtils.d(TAG, "startAudioCaptureDataObserverInternal isStartAudioCaptureDataObserverExternal: " + isStartAudioCaptureDataObserverExternal + ", isStartAudioCaptureDataObserverInternal: " + isStartAudioCaptureDataObserverInternal);
+        startAudioCaptureDataObserverIfNeed();
+        isStartAudioCaptureDataObserverInternal = true;
+    }
+
+    private void stopAudioCaptureDataObserverInternal() {
+        LogUtils.d(TAG, "stopAudioCaptureDataObserverInternal isStartAudioCaptureDataObserverExternal: " + isStartAudioCaptureDataObserverExternal + ", isStartAudioCaptureDataObserverInternal: " + isStartAudioCaptureDataObserverInternal);
+        isStartAudioCaptureDataObserverInternal = false;
+        stopAudioCaptureDataObserverIfNeed();
+    }
+
+    private void startAudioCaptureDataObserverIfNeed() {
+        boolean hasStart = isStartAudioCaptureDataObserverInternal || isStartAudioCaptureDataObserverExternal;
+        if (hasStart) {
+            return;
+        }
+
+        ZegoAudioFrameParam frameParam = new ZegoAudioFrameParam();
+        frameParam.sampleRate = SAMPLE_RATE_AUDIO_CAPTURE_DATA_OBSERVER;
+        frameParam.channel = CHANNEL_COUNT_AUDIO_CAPTURE_DATA_OBSERVER;
+
+        mExpressEngine.startAudioDataObserver(ZegoAudioDataCallbackBitMask.CAPTURED.value(), frameParam);
+    }
+
+    private void stopAudioCaptureDataObserverIfNeed() {
+        boolean hasStart = isStartAudioCaptureDataObserverInternal || isStartAudioCaptureDataObserverExternal;
+        if (!hasStart) {
+            return;
+        }
+        mExpressEngine.stopAudioDataObserver();
+    }
+
     /**
      * 触发延迟停止混流逻辑
      */
@@ -1495,10 +1535,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                     mExpressEngine.startPublishingStream(cdnPublishStreamID, ZegoPublishChannel.AUX);
                     mExpressEngine.setStreamExtraInfo(STREAM_EXTRA_INFO_CDN_TAG, ZegoPublishChannel.AUX, null);
 
-                    ZegoDataRecordConfig recordConfig = new ZegoDataRecordConfig();
-                    recordConfig.recordType = ZegoDataRecordType.ONLY_AUDIO;
-                    recordConfig.filePath = new File(BaseApplication.getInstance().getExternalCacheDir(), "temp.aac").getAbsolutePath();
-                    mExpressEngine.startRecordingCapturedData(recordConfig, ZegoPublishChannel.MAIN);
+                    startAudioCaptureDataObserverInternal();
                     break;
                 default:
                     break;
