@@ -5,11 +5,8 @@ import android.hardware.Camera;
 import android.media.AudioManager;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.Message;
 import android.text.TextUtils;
 import android.util.Log;
-
-import androidx.annotation.NonNull;
 
 import com.zego.expressDemo.application.BaseApplication;
 import com.zego.expressDemo.bean.GameStreamEntity;
@@ -114,7 +111,11 @@ import im.zego.zegoexpress.utils.ZegoLibraryLoadUtil;
  * TODO
  * 1、外部采集修改成外部滤镜
  * 2、enableCamera 逻辑修改
- * 3、dummpy 逻辑支持
+ * 3、dummy 逻辑支持
+ * 4、多转推 CDN 支持
+ * 5、observer 修改
+ * 6、确认切换同一个房间，是否需要停止转推。
+ * 7、确认 public void startPublishRTCStream 这个接口存在的意义
  * <p>
  * 测试内容：
  * 1、切换摄像头
@@ -123,6 +124,7 @@ import im.zego.zegoexpress.utils.ZegoLibraryLoadUtil;
  * 4、前后台切换
  * 5、分辨率切换
  * 6、AudioDataObserver
+ * 7、动态转推
  */
 @SuppressWarnings("unused")
 public class ZegoEngine implements IZegoVideoFrameConsumer {
@@ -143,8 +145,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private static final String TIMER_NAME_SEND_CDN_SINGLE_LAYOUT_SEI = "send_cdn_sei";
     private static final String SEI_MESSAGE_KEY_LAYOUT_USER_COUNT = "luc";
 
-    private static final int MSG_WHAT_STOP_MIX_TASK = 0x10;
-    private static final int MSG_WHAT_REMOVE_PUBLISH_CDN_URL_TASK = 0x11;
     public static final long TIME_KEEP_STREAM_PUBLISH_IN_MILLS = 3000;
 
     private static volatile ZegoEngine sEngine;
@@ -178,16 +178,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         sEngine = null;
     }
 
-    private final Handler mUiHandler = new Handler(Looper.getMainLooper()) {
-        @Override
-        public void handleMessage(@NonNull Message msg) {
-            if (msg.what == MSG_WHAT_STOP_MIX_TASK) {
-                stopMixerTaskIfNeed();
-            } else if (msg.what == MSG_WHAT_REMOVE_PUBLISH_CDN_URL_TASK) {
-                removePublishCdnUrlIfNeed();
-            }
-        }
-    };
+    private final Handler mUiHandler = new Handler(Looper.getMainLooper());
 
     private final ZegoExpressEngine mExpressEngine;
     private final CameraExternalVideoCaptureGL mCameraCapture;
@@ -210,7 +201,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     private MixerConfig mMixerConfig;
     private String mMixerTargetUrl;
     private String mMixerTargetUrlWithPriority;
-    private String mPublishTargetUrl;
+    private final List<String> mPublishTargetUrlList;
     private int mEncodeProfile = 0; // 编码器配置，默认为0，baseline
     private int mGopSize = 2; // sdk 默认的gop size 为2
 
@@ -220,6 +211,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         mPlayingStreamInfos = new ArrayList<>();
         mRemoteCanvasMap = new HashMap<>();
         mPlayingStreamStateBeans = new HashMap<>();
+        mPublishTargetUrlList = new ArrayList<>();
 
         mCameraCapture = new CameraExternalVideoCaptureGL(this);
 
@@ -376,8 +368,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         ZegoAudioConfig auxAudioConfig = new ZegoAudioConfig();
         auxAudioConfig.codecID = ZegoAudioCodecID.NORMAL;
         mExpressEngine.setAudioConfig(auxAudioConfig, ZegoPublishChannel.AUX);
-//        mExpressEngine.enableHardwareDecoder(true);
-//        mExpressEngine.enableHardwareEncoder(true);
+
+        mExpressEngine.enableHardwareDecoder(true);
+        mExpressEngine.enableHardwareEncoder(true);
     }
 
     private void setVideoMirrorMode(ZegoVideoMirrorMode mirrorMode) {
@@ -641,8 +634,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                 UserStreamInfo publishStreamInfoRTC = publishStreamInfos.get(StreamType.RTC);
                 if (!mPublishStreamInfoRTC.equals(publishStreamInfoRTC) && null != publishStreamInfoRTC) {
                     stopPublish(mPublishStreamInfoRTC);
-                    // 如果 RTC 流地址不一样，停止转推
-                    removePublishCdnUrlIfNeed();
+                    // 如果 RTC 流地址不一样，停止转推，在 stopPublish RTC 内部执行了
                 }
             }
             if (mPublishStreamInfoCDN != null) {
@@ -659,10 +651,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                 UserStreamInfo publishStreamInfoRTC = publishStreamInfos.get(StreamType.RTC);
                 if (!mPublishStreamInfoRTC.equals(publishStreamInfoRTC)) {
                     // 如果 RTC 流地址不一样，停止转推
-                    removePublishCdnUrlIfNeed();
-                } else {
-                    // 如果是一样的话，按需启动延时任务，这里的规则还是，切换房间，所有东西能清就清。
-                    triggerRemovePublishCdnUrl();
+                    removeAllPublishCdnUrl();
                 }
             }
 
@@ -716,7 +705,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     public void leaveLive(boolean isClosePreview) {
         LogUtils.i(TAG, "leaveLive isLoginSuccess: " + isLoginSuccess);
         // reset 会将 uiHandler 中的延时任务都移除
-        removePublishCdnUrlIfNeed();
         stopMixerTaskIfNeed();
 
         mExpressEngine.logoutRoom();
@@ -766,6 +754,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     public void stopPublish(UserStreamInfo publishStreamInfo) {
         LogUtils.i(TAG, "stopPublish publishStreamInfo: " + publishStreamInfo + ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC + ", mPublishStreamInfoCDN: " + mPublishStreamInfoCDN);
         if (mPublishStreamInfoRTC != null && mPublishStreamInfoRTC.equals(publishStreamInfo)) {
+            // 先 remove 后 mPublishStreamInfoRTC = null，因为 removeAllPublishCdnUrl 内部会判断 mPublishStreamInfoRTC 的值
+            removeAllPublishCdnUrl();
+
             mPublishStreamInfoRTC = null;
             mExpressEngine.stopPublishingStream(ZegoPublishChannel.MAIN);
         } else if (mPublishStreamInfoCDN != null && mPublishStreamInfoCDN.equals(publishStreamInfo)) {
@@ -821,43 +812,51 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     }
 
     /**
-     * 如果当前在推 rtc 流，则将 rtc 流转推到 targetURL。
-     * <p>
-     * 转推也会在 joinLive 和 leaveLive 的时候停止。
+     * 添加转推地址，只有在推 rtc 流后添加才有效
+     * 停止推流、切换房间或者同一个房间推不同的 RTC 流，转推操作会停止，转推列表会主动清空。
      *
-     * @param targetURL 指定转推的 CDN 地址，null 或者 空字符串表示停止当前转推
+     * @param targetURL 转推的目标 CDN 地址
      */
-    public void setPublishCdnUrl(String targetURL) {
-        LogUtils.i(TAG, "setPublishCdnUrl targetURL: " + targetURL + ", mPublishTargetUrl: " + mPublishTargetUrl + ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC);
-        if (targetURL == null && mPublishTargetUrl == null) {
-            LogUtils.w(TAG, "setPublishCdnUrl targetURL is null"); // 现在，期望都没有转推，所以不执行操作
+    public void addPublishCdnUrl(String targetURL) {
+        LogUtils.i(TAG, "addPublishCdnUrl targetUrl: " + targetURL + ", mPublishTargetUrlList: " + mPublishTargetUrlList + ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC);
+        if (mPublishTargetUrlList.contains(targetURL) || TextUtils.isEmpty(targetURL) || mPublishStreamInfoRTC == null) {
             return;
         }
 
-        if (targetURL != null && targetURL.equals(mPublishTargetUrl)) {
-            // 如果是支持优先级，那么转推地址一样表示更新优先级，需要更新，否则直接返回
-            LogUtils.w(TAG, "setPublishCdnUrl mPublishTargetUrl have not changed! mPublishTargetUrl: " + mPublishTargetUrl);
-            return;
-        } else {
-            // 如果地址不一样，先停止转推
-            // 由于这里的设置逻辑，只支持一个转推输出。所以有这个逻辑。
-            removePublishCdnUrlIfNeed();
-        }
-
-        // 如果之前没有转推，或者现在没有推实时流，则直接返回
-        if (TextUtils.isEmpty(targetURL) || mPublishStreamInfoRTC == null) {
-            LogUtils.w(TAG, "setPublishCdnUrl is not publishing rtc");
-            return;
-        }
-
-        String streamID = mPublishStreamInfoRTC.target;
-        mExpressEngine.addPublishCdnUrl(mPublishStreamInfoRTC.target, targetURL, new IZegoPublisherUpdateCdnUrlCallback() {
+        final String streamID = mPublishStreamInfoRTC.target;
+        mExpressEngine.addPublishCdnUrl(streamID, targetURL, new IZegoPublisherUpdateCdnUrlCallback() {
             @Override
             public void onPublisherUpdateCdnUrlResult(int error) {
                 LogUtils.d(TAG, "setPublishCdnUrl onPublisherUpdateCdnUrlResult streamID: " + streamID + ", targetUrl: " + targetURL + ", error: " + error);
             }
         });
-        mPublishTargetUrl = targetURL;
+        mPublishTargetUrlList.add(targetURL);
+    }
+
+    /**
+     * 移除转推地址。
+     * 停止推流、切换房间或者同一个房间推不同的 RTC 流，转推操作会停止，转推列表会主动清空。
+     *
+     * @param targetURL 需要移除的转推目标 CDN 地址。
+     */
+    public void removePublishCdnUrl(String targetURL) {
+        LogUtils.i(TAG, "removePublishCdnUrl targetUrl: " + targetURL + ", mPublishTargetUrlList: " + mPublishTargetUrlList + ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC);
+        if (!mPublishTargetUrlList.contains(targetURL) || TextUtils.isEmpty(targetURL) || mPublishStreamInfoRTC == null) {
+            return;
+        }
+        removePublishCdnUrlInner(targetURL);
+
+        mPublishTargetUrlList.remove(targetURL);
+    }
+
+    /**
+     * 返回当前在转推的 CDN 地址列表。
+     * 停止推流、切换房间或者同一个房间推不同的 RTC 流，转推操作会停止，该列表会主动清空。
+     *
+     * @return 当前在转推的 CDN 地址列表。
+     */
+    public List<String> getCurrentPublishCdnUrlList() {
+        return mPublishTargetUrlList;
     }
 
     /**
@@ -1037,8 +1036,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      */
     private void updateMixerTaskIfNeed() {
         LogUtils.d(TAG, "updateMixerTaskIfNeed mMixerTargetUrl: " + mMixerTargetUrl + ", mMixerConfig: " + mMixerConfig);
-        if (mMixerConfig == null || mMixerConfig.inputList.isEmpty() || TextUtils.isEmpty(mMixerTargetUrl) || mUiHandler.hasMessages(MSG_WHAT_STOP_MIX_TASK)) {
-            // 没有指定混流参数或者混流输入参数为空，或者没有输出路径，或者现在在异步移除混流认为中，则直接返回
+        if (mMixerConfig == null || mMixerConfig.inputList.isEmpty() || TextUtils.isEmpty(mMixerTargetUrl)) {
+            // 没有指定混流参数或者混流输入参数为空，或者没有输出路径
             return;
         }
 
@@ -1167,22 +1166,23 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         return streamInfos;
     }
 
-    private void removePublishCdnUrlIfNeed() {
-        LogUtils.d(TAG, "removePublishCdnUrlIfNeed mPublishTargetUrl: " + mPublishTargetUrl + ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC);
-        String publishTargetUrl = mPublishTargetUrl;
-        mPublishTargetUrl = null;
-        // 如果之前没有转推，或者现在没有推实时流，则直接返回
-        if (TextUtils.isEmpty(publishTargetUrl) || mPublishStreamInfoRTC == null) {
+    private void removeAllPublishCdnUrl() {
+        LogUtils.d(TAG, "removeAllPublishCdnUrl mPublishTargetUrlList: " + mPublishTargetUrlList + ", mPublishStreamInfoRTC: " + mPublishStreamInfoRTC);
+        if (mPublishStreamInfoRTC == null) {
             return;
         }
+        for (String targetUrl : mPublishTargetUrlList) {
+            removePublishCdnUrlInner(targetUrl);
+        }
+        mPublishTargetUrlList.clear();
+    }
 
-        String streamID = mPublishStreamInfoRTC.target;
-
-        // 这里只需要关 rtc streamID，所以不做任何转换
-        mExpressEngine.removePublishCdnUrl(streamID, publishTargetUrl, new IZegoPublisherUpdateCdnUrlCallback() {
+    private void removePublishCdnUrlInner(String targetURL) {
+        final String streamID = mPublishStreamInfoRTC.target;
+        mExpressEngine.removePublishCdnUrl(streamID, targetURL, new IZegoPublisherUpdateCdnUrlCallback() {
             @Override
             public void onPublisherUpdateCdnUrlResult(int error) {
-                LogUtils.d(TAG, "removePublishCdnUrl onPublisherUpdateCdnUrlResult streamID: " + streamID + ", targetUrl: " + publishTargetUrl + ", error: " + error);
+                LogUtils.d(TAG, "removePublishCdnUrl onPublisherUpdateCdnUrlResult streamID: " + streamID + ", targetUrl: " + targetURL + ", error: " + error);
             }
         });
     }
@@ -1194,10 +1194,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         // 对于观众拉两路 RTMP 流的 单播PK 切换优化方案，其实下面的延迟逻辑使跟优先级开关没什么关系。
         // 这里仅仅是以该开关统一管理该优化策略。
         stopMixerTaskIfNeed();
-    }
-
-    private void triggerRemovePublishCdnUrl() {
-        removePublishCdnUrlIfNeed();
     }
 
     private void stopMixerTaskIfNeed() {
@@ -1221,17 +1217,19 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     }
 
     private void reset(boolean isClosePreview) {
+        removeAllPublishCdnUrl();
+
         mRoomID = null;
         mPublishStreamInfoRTC = null;
         mPublishStreamInfoCDN = null;
         mLocalCanvas = null;
-        mPublishTargetUrl = null;
         mMixerTargetUrl = null;
         mMixerTargetUrlWithPriority = null;
         mMixerConfig = null;
 
         isLoginSuccess = false;
         isPreview = isClosePreview;
+        mPublishTargetUrlList.clear();
         mPlayingStreamInfos.clear();
         mRemoteCanvasMap.clear();
         mPlayingStreamStateBeans.clear();
