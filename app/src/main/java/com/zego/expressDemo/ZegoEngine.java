@@ -21,6 +21,7 @@ import com.zego.expressDemo.config.JavaGlobalConfig;
 import com.zego.expressDemo.data.Constant;
 import com.zego.expressDemo.data.User;
 import com.zego.expressDemo.data.ZegoDataCenter;
+import com.zego.expressDemo.filter.STFilter;
 import com.zego.expressDemo.utils.AnalyticsLog;
 import com.zego.expressDemo.utils.JsonUtil;
 import com.zego.expressDemo.utils.LogUtils;
@@ -72,6 +73,7 @@ import im.zego.zegoexpress.constants.ZegoVideoBufferType;
 import im.zego.zegoexpress.constants.ZegoVideoCodecID;
 import im.zego.zegoexpress.constants.ZegoVideoFrameFormat;
 import im.zego.zegoexpress.constants.ZegoVideoMirrorMode;
+import im.zego.zegoexpress.constants.ZegoVideoSourceType;
 import im.zego.zegoexpress.entity.ZegoAudioConfig;
 import im.zego.zegoexpress.entity.ZegoAudioFrameParam;
 import im.zego.zegoexpress.entity.ZegoCDNConfig;
@@ -79,6 +81,7 @@ import im.zego.zegoexpress.entity.ZegoCanvas;
 import im.zego.zegoexpress.entity.ZegoCustomAudioConfig;
 import im.zego.zegoexpress.entity.ZegoCustomAudioProcessConfig;
 import im.zego.zegoexpress.entity.ZegoCustomVideoCaptureConfig;
+import im.zego.zegoexpress.entity.ZegoCustomVideoProcessConfig;
 import im.zego.zegoexpress.entity.ZegoDataRecordConfig;
 import im.zego.zegoexpress.entity.ZegoDataRecordProgress;
 import im.zego.zegoexpress.entity.ZegoMixerInput;
@@ -112,6 +115,18 @@ import im.zego.zegoexpress.utils.ZegoLibraryLoadUtil;
  * 1、C++ 音频能力
  * 2、预埋 高优先级逻辑
  * 3、配对首帧慢问题
+ * <p>
+ * TODO
+ * 1、外部采集修改成外部滤镜
+ * 2、enableCamera 逻辑修改
+ * 3、dummpy 逻辑支持
+ * <p>
+ * 测试内容：
+ * 1、切换摄像头
+ * 2、水印功能
+ * 3、美颜功能
+ * 4、前后台切换
+ * 5、分辨率切换
  */
 @SuppressWarnings("unused")
 public class ZegoEngine implements IZegoVideoFrameConsumer {
@@ -179,7 +194,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     };
 
     private final ZegoExpressEngine mExpressEngine;
-    private final CameraExternalVideoCaptureGL mCameraCapture;
     private ByteBuffer mCaptureDataByteBuffer;
     private final Map<String, ZegoEngineEventHandler> mEventHandlerMap;
 
@@ -212,8 +226,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         mPlayingStreamInfos = new ArrayList<>();
         mRemoteCanvasMap = new HashMap<>();
         mPlayingStreamStateBeans = new HashMap<>();
-
-        mCameraCapture = new CameraExternalVideoCaptureGL(this);
 
         // ZegoScenario 参数说明：
         // GENERAL 表示全程使用媒体音量，只使用软件的 3A 处理，上麦占用麦克风，下麦不占用麦克风。IOS 由于上下麦有设备启停的操作，所以上下麦会有轻微的卡顿感觉。
@@ -341,14 +353,21 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             throw e;
         }
 
-        // 设置外部视频采集
+        ZegoCustomVideoProcessConfig customVideoProcessConfig = new ZegoCustomVideoProcessConfig();
+        customVideoProcessConfig.bufferType = ZegoVideoBufferType.GL_TEXTURE_2D;
+        mExpressEngine.enableCustomVideoProcessing(true, customVideoProcessConfig);
+        mExpressEngine.setCustomVideoProcessHandler(new STFilter());
+
+        // 辅路流使用拷贝主路内容
+        mExpressEngine.setVideoSource(ZegoVideoSourceType.MAIN_PUBLISH_CHANNEL, ZegoPublishChannel.AUX);
+        mExpressEngine.setVideoSource(ZegoVideoSourceType.CUSTOM, ZegoPublishChannel.THIRD);
+        mExpressEngine.setVideoSource(ZegoVideoSourceType.CUSTOM, ZegoPublishChannel.FOURTH);
+
+        // 设置外部视频采集（该功能暂时无效，因为没有设置外部采集源）
         ZegoCustomVideoCaptureConfig customVideoCaptureConfig = new ZegoCustomVideoCaptureConfig();
         customVideoCaptureConfig.bufferType = ZegoVideoBufferType.RAW_DATA;
-        mExpressEngine.enableCustomVideoCapture(true, customVideoCaptureConfig, ZegoPublishChannel.MAIN);
-        mExpressEngine.enableCustomVideoCapture(true, customVideoCaptureConfig, ZegoPublishChannel.AUX);
         mExpressEngine.enableCustomVideoCapture(true, customVideoCaptureConfig, ZegoPublishChannel.THIRD);
         mExpressEngine.enableCustomVideoCapture(true, customVideoCaptureConfig, ZegoPublishChannel.FOURTH);
-        mExpressEngine.setCustomVideoCaptureHandler(mCameraCapture);
 
         // 启动外部音频前处理
         mExpressEngine.enableCustomAudioCaptureProcessing(true, new ZegoCustomAudioProcessConfig());
@@ -390,8 +409,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         mExpressEngine.setAudioConfig(auxAudioConfig, ZegoPublishChannel.AUX);
         mExpressEngine.setAudioConfig(auxAudioConfig, ZegoPublishChannel.THIRD);
         mExpressEngine.setAudioConfig(auxAudioConfig, ZegoPublishChannel.FOURTH);
-//        mExpressEngine.enableHardwareDecoder(true);
-//        mExpressEngine.enableHardwareEncoder(true);
+
+        mExpressEngine.enableHardwareEncoder(true); // 打开硬编
+        mExpressEngine.enableHardwareDecoder(true); // 打开硬解
     }
 
     private void setVideoMirrorMode(ZegoVideoMirrorMode mirrorMode) {
@@ -402,8 +422,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     }
 
     private void release() {
-        mCameraCapture.destroy();
-
         ZegoExpressEngine.destroyEngine(null);
     }
 
@@ -520,7 +538,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         checkAndSetVideoCaptureState();
     }
 
-    public void enableCamera(boolean enable) {
+    public void enableCamera(boolean enable) { // 由于推流内容是一致的，因此 enableCamera 是影响所有通道的
         LogUtils.i(TAG, "enableCamera enable: " + enable);
         isEnableCamera = enable;
         mExpressEngine.enableCamera(enable, ZegoPublishChannel.MAIN);
