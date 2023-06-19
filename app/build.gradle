@@ -39,6 +39,7 @@ android {
             jniLibs.srcDirs = ['libs']
         }
     }
+    namespace 'com.zego.expressDemo'
 }
 
 dependencies {
