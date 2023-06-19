@@ -55,6 +55,7 @@ import im.zego.zegoexpress.constants.ZegoAudioSampleRate;
 import im.zego.zegoexpress.constants.ZegoAudioSourceType;
 import im.zego.zegoexpress.constants.ZegoAudioVADStableStateMonitorType;
 import im.zego.zegoexpress.constants.ZegoAudioVADType;
+import im.zego.zegoexpress.constants.ZegoCapturePipelineScaleMode;
 import im.zego.zegoexpress.constants.ZegoDataRecordState;
 import im.zego.zegoexpress.constants.ZegoPlayerState;
 import im.zego.zegoexpress.constants.ZegoPublishChannel;
@@ -72,7 +73,6 @@ import im.zego.zegoexpress.entity.ZegoAudioConfig;
 import im.zego.zegoexpress.entity.ZegoAudioFrameParam;
 import im.zego.zegoexpress.entity.ZegoCDNConfig;
 import im.zego.zegoexpress.entity.ZegoCanvas;
-import im.zego.zegoexpress.entity.ZegoCustomAudioConfig;
 import im.zego.zegoexpress.entity.ZegoCustomVideoProcessConfig;
 import im.zego.zegoexpress.entity.ZegoDataRecordConfig;
 import im.zego.zegoexpress.entity.ZegoDataRecordProgress;
@@ -121,7 +121,6 @@ import im.zego.zegoexpress.utils.ZegoLibraryLoadUtil;
  * 6、AudioDataObserver
  * 7、动态转推
  * 8、切换摄像头
- * 9、水印
  */
 @SuppressWarnings("unused")
 public class ZegoEngine implements IZegoVideoFrameConsumer {
@@ -342,18 +341,18 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             throw e;
         }
 
+        // 由于辅路复用主路内容，所以这里使用高清预览，避免主路的缩放影响主路
+        mExpressEngine.setCapturePipelineScaleMode(ZegoCapturePipelineScaleMode.POST);
+
         ZegoCustomVideoProcessConfig customVideoProcessConfig = new ZegoCustomVideoProcessConfig();
         customVideoProcessConfig.bufferType = ZegoVideoBufferType.GL_TEXTURE_2D;
         mExpressEngine.enableCustomVideoProcessing(true, customVideoProcessConfig);
         mExpressEngine.setCustomVideoProcessHandler(new STFilter(BaseApplication.getInstance()));
 
+        // CDN 流音频来源
+        mExpressEngine.setAudioSource(ZegoAudioSourceType.MAIN_PUBLISH_CHANNEL, ZegoPublishChannel.AUX);
         // 辅路流使用拷贝主路内容
         mExpressEngine.setVideoSource(ZegoVideoSourceType.MAIN_PUBLISH_CHANNEL, ZegoPublishChannel.AUX);
-
-        // CDN 流音频来源
-        ZegoCustomAudioConfig audioConfig = new ZegoCustomAudioConfig();
-        audioConfig.sourceType = ZegoAudioSourceType.MAIN_PUBLISH_CHANNEL;
-        mExpressEngine.enableCustomAudioIO(true, audioConfig, ZegoPublishChannel.AUX);
 
         // 默认预览推流都镜像
         boolean isSetMirrorMode = (boolean) SPUtils.get(Utils.getApp(), User.get().getUserId() + Constant.KEY_VIDEO_MIRROR_MODE_VALUE, false);
@@ -485,6 +484,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     public void setVideoConfig(int width, int height, int fps, int bitrate, int type) {
         LogUtils.i(TAG, "setVideoConfig width: " + width + ", height: " + height + ", fps: " + fps + ", bitrate: " + bitrate);
         ZegoVideoConfig videoConfig = new ZegoVideoConfig();
+        // hardcore 540P 采集
+        videoConfig.captureWidth = 540;
+        videoConfig.captureHeight = 960;
         videoConfig.encodeWidth = width;
         videoConfig.encodeHeight = height;
         videoConfig.fps = fps;
@@ -629,13 +631,8 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             isLoginSameRoom = true;
             // 如果是同一个房间，不会执行清除远程视图的逻辑。
         } else {
-            if (mPublishStreamInfoRTC != null) {
-                UserStreamInfo publishStreamInfoRTC = publishStreamInfos.get(StreamType.RTC);
-                if (!mPublishStreamInfoRTC.equals(publishStreamInfoRTC)) {
-                    // 如果 RTC 流地址不一样，停止转推
-                    removeAllPublishCdnUrl();
-                }
-            }
+            // 切换房间，直接将转推都停掉
+            removeAllPublishCdnUrl();
 
             // 如果已经登录房间，则直接通过 switchRoom 进行房间切换，该逻辑会停止推拉流的。
             mExpressEngine.switchRoom(mRoomID, roomID);
@@ -748,9 +745,10 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         } else if (mPublishStreamInfoCDN != null && mPublishStreamInfoCDN.equals(publishStreamInfo)) {
             mPublishStreamInfoCDN = null;
             mExpressEngine.stopPublishingStream(ZegoPublishChannel.AUX);
-
-            stopAudioCaptureDataObserverInternal();
         }
+
+        startAudioCaptureDataObserverInternalIfNeed();
+        stopAudioCaptureDataObserverInternalIfNeed();
     }
 
     /**
@@ -1095,20 +1093,6 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         switchMirrorMode(isSetMirrorMode);
     }
 
-    /**
-     * 图片路径。如果是完整路径则添加 "file:" 前缀，如："file:/sdcard/image.png"；assets 目录下的图片则添加 "asset:" 前缀，如："asset:watermark.png"
-     *
-     * @param path 图片路径
-     */
-    public void addColorWatermark(String path) {
-        mExpressEngine.setDummyCaptureImagePath(path, ZegoPublishChannel.MAIN);
-        mExpressEngine.setDummyCaptureImagePath(path, ZegoPublishChannel.AUX);
-    }
-
-    public void removeColorWatermark() {
-        mExpressEngine.setDummyCaptureImagePath(null, ZegoPublishChannel.MAIN);
-        mExpressEngine.setDummyCaptureImagePath(null, ZegoPublishChannel.AUX);
-    }
     // ------------- 相机能力 -------------- //
 
     /**
@@ -1181,6 +1165,21 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         });
     }
 
+    private void startAudioCaptureDataObserverInternalIfNeed() {
+        LogUtils.d(TAG, "startAudioCaptureDataObserverInternalIfNeed mPublishStreamInfoRTC: " + mPublishStreamInfoRTC + ", mPublishStreamInfoCDN: " + mPublishStreamInfoCDN);
+        if (mPublishStreamInfoRTC == null && mPublishStreamInfoCDN != null) {
+            startAudioCaptureDataObserverInternal();
+        }
+    }
+
+    private void stopAudioCaptureDataObserverInternalIfNeed() {
+        LogUtils.d(TAG, "stopAudioCaptureDataObserverInternalIfNeed mPublishStreamInfoRTC: " + mPublishStreamInfoRTC + ", mPublishStreamInfoCDN: " + mPublishStreamInfoCDN);
+        // 如果推流 rtc 流，或者 cdn 没有推，则停止
+        if (mPublishStreamInfoRTC != null || mPublishStreamInfoCDN == null) {
+            stopAudioCaptureDataObserverInternal();
+        }
+    }
+
     private void startAudioCaptureDataObserverInternal() {
         LogUtils.d(TAG, "startAudioCaptureDataObserverInternal isStartAudioCaptureDataObserverExternal: " + isStartAudioCaptureDataObserverExternal + ", isStartAudioCaptureDataObserverInternal: " + isStartAudioCaptureDataObserverInternal);
         startAudioCaptureDataObserverIfNeed();
@@ -1195,6 +1194,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
     private void startAudioCaptureDataObserverIfNeed() {
         boolean hasStart = isStartAudioCaptureDataObserverInternal || isStartAudioCaptureDataObserverExternal;
+        LogUtils.d(TAG, "startAudioCaptureDataObserverIfNeed hasStart: " + hasStart);
         if (hasStart) {
             return;
         }
@@ -1207,8 +1207,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
     }
 
     private void stopAudioCaptureDataObserverIfNeed() {
-        boolean hasStart = isStartAudioCaptureDataObserverInternal || isStartAudioCaptureDataObserverExternal;
-        if (!hasStart) {
+        boolean needStop = !isStartAudioCaptureDataObserverInternal && !isStartAudioCaptureDataObserverExternal;
+        LogUtils.d(TAG, "stopAudioCaptureDataObserverIfNeed needStop: " + needStop);
+        if (!needStop) {
             return;
         }
         mExpressEngine.stopAudioDataObserver();
@@ -1253,6 +1254,9 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         mMixerTargetUrl = null;
         mMixerTargetUrlWithPriority = null;
         mMixerConfig = null;
+
+        isStartAudioCaptureDataObserverExternal = false;
+        isStartAudioCaptureDataObserverInternal = false;
 
         isLoginSuccess = false;
         isPreview = isClosePreview;
@@ -1519,12 +1523,13 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
                     String cdnPublishStreamID = getCDNStreamIDUserStreamInfo(publishStreamInfo);
                     mExpressEngine.startPublishingStream(cdnPublishStreamID, ZegoPublishChannel.AUX);
                     mExpressEngine.setStreamExtraInfo(STREAM_EXTRA_INFO_CDN_TAG, ZegoPublishChannel.AUX, null);
-
-                    startAudioCaptureDataObserverInternal();
                     break;
                 default:
                     break;
             }
+
+            startAudioCaptureDataObserverInternalIfNeed();
+            stopAudioCaptureDataObserverInternalIfNeed();
         }
     }
 
