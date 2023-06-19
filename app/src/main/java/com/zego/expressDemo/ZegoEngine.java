@@ -109,9 +109,6 @@ import im.zego.zegoexpress.utils.ZegoLibraryLoadUtil;
  * 3、配对首帧慢问题
  * <p>
  * TODO
- * 1、外部采集修改成外部滤镜
- * 2、enableCamera 逻辑修改
- * 3、dummy 逻辑支持
  * 6、确认切换同一个房间，是否需要停止转推。
  * 7、确认 public void startPublishRTCStream 这个接口存在的意义
  * <p>
@@ -348,7 +345,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         ZegoCustomVideoProcessConfig customVideoProcessConfig = new ZegoCustomVideoProcessConfig();
         customVideoProcessConfig.bufferType = ZegoVideoBufferType.GL_TEXTURE_2D;
         mExpressEngine.enableCustomVideoProcessing(true, customVideoProcessConfig);
-        mExpressEngine.setCustomVideoProcessHandler(new STFilter());
+        mExpressEngine.setCustomVideoProcessHandler(new STFilter(BaseApplication.getInstance()));
 
         // 辅路流使用拷贝主路内容
         mExpressEngine.setVideoSource(ZegoVideoSourceType.MAIN_PUBLISH_CHANNEL, ZegoPublishChannel.AUX);

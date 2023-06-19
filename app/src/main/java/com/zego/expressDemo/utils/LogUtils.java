@@ -6,6 +6,10 @@ public class LogUtils {
 
     private final static String TAG = LogUtils.class.getSimpleName();
 
+    public static void v(String tag, String message) {
+        Log.v(tag, message);
+    }
+
     public static void d(String tag, String message) {
         Log.d(tag, message);
     }
