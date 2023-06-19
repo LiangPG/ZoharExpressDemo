@@ -1,6 +1,7 @@
 package com.zego.expressDemo;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -10,11 +11,7 @@ import android.widget.Toast;
 import com.zego.expressDemo.bean.ZegoVideoCanvas;
 import com.zego.expressDemo.data.ZegoDataCenter;
 
-import java.io.File;
-
-import im.zego.zegoexpress.constants.ZegoDataRecordType;
 import im.zego.zegoexpress.constants.ZegoPublishChannel;
-import im.zego.zegoexpress.entity.ZegoDataRecordConfig;
 
 public class MainActivity extends BaseActivity implements CompoundButton.OnCheckedChangeListener {
 
@@ -82,7 +79,7 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
 
                 isJoinLive = true;
 
-                ZegoEngine.getEngine().setVideoConfig(240, 432, 15, 350, 1);
+                ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, 1);
                 ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, 2);
 //                ZegoEngine.getEngine().setVideoConfig(240, 432, 15, 350, ZegoPublishChannel.MAIN);
 //                ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, ZegoPublishChannel.AUX);
@@ -121,26 +118,75 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
                 ZegoEngine.getEngine().setLocalVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_preview), 0));
                 ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_main), ZegoPublishChannel.MAIN.value()));
                 ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_aux), ZegoPublishChannel.AUX.value()));
-                ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_third), ZegoPublishChannel.THIRD.value()));
-                ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_fourth), ZegoPublishChannel.FOURTH.value()));
             }
         });
 
-        findViewById(R.id.btn_start_record).setOnClickListener(new View.OnClickListener() {
+        findViewById(R.id.btn_audio_observer).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 isRecord = !isRecord;
                 if (isRecord) {
-                    ZegoDataRecordConfig recordConfig = new ZegoDataRecordConfig();
-                    recordConfig.recordType = ZegoDataRecordType.AUDIO_AND_VIDEO;
-                    recordConfig.filePath = new File(getExternalCacheDir(), "temp.mp4").getAbsolutePath();
-                    ZegoEngine.getEngine().startRecordingCaptured(recordConfig);
+                    ZegoEngine.getEngine().startAudioCaptureDataObserver(new IZegoAudioCaptureDataHandler() {
+                        @Override
+                        public void onCapturedAudioData(byte[] data, int dataLength, int sampleRate, int channel) {
+                            Log.d(TAG, "-->:: onCapturedAudioData data[0]: " +data[0]);
+                        }
+                    });
                 } else {
-                    ZegoEngine.getEngine().stopRecordingCaptured();
+                    ZegoEngine.getEngine().stopAudioCaptureDataObserver();
+                }
+            }
+        });
+
+        findViewById(R.id.btn_add_cdn_publish).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ZegoEngine.getEngine().addPublishCdnUrl("rtmp://wsdemo.zego.im/miniapp/" + "publishCdnUrl");
+            }
+        });
+
+        findViewById(R.id.btn_add_cdn_publish2).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ZegoEngine.getEngine().addPublishCdnUrl("rtmp://wsdemo.zego.im/miniapp/" + "publishCdnUrl_2");
+            }
+        });
+
+        findViewById(R.id.btn_delete_cdn_publish).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ZegoEngine.getEngine().removePublishCdnUrl("rtmp://wsdemo.zego.im/miniapp/" + "publishCdnUrl");
+            }
+        });
+
+        findViewById(R.id.btn_delete_cdn_publish2).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ZegoEngine.getEngine().removePublishCdnUrl("rtmp://wsdemo.zego.im/miniapp/" + "publishCdnUrl_2");
+            }
+        });
+
+        findViewById(R.id.btn_switch_camera).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ZegoEngine.getEngine().switchCamera();
+            }
+        });
+
+        findViewById(R.id.btn_change_resolution).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                isLow = !isLow;
+                if (isLow) {
+                    ZegoEngine.getEngine().setVideoConfig(180, 320, 15, 80, 1);
+                } else {
+                    ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, 1);
                 }
             }
         });
     }
+
+    private boolean isLow = false;
 
     @Override
     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -172,6 +218,7 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
             ZegoEngine.UserStreamInfo playStreamInfo = getPlayStreamInfo(ZegoPublishChannel.MAIN);
             if (isChecked) {
                 ZegoEngine.getEngine().startPlayStream(playStreamInfo);
+                ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_main), ZegoPublishChannel.MAIN.value()));
             } else {
                 ZegoEngine.getEngine().stopPlayStream(playStreamInfo);
             }
@@ -180,6 +227,7 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
             ZegoEngine.UserStreamInfo playStreamInfo = getPlayStreamInfo(ZegoPublishChannel.AUX);
             if (isChecked) {
                 ZegoEngine.getEngine().startPlayStream(playStreamInfo);
+                ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_aux), ZegoPublishChannel.AUX.value()));
             } else {
                 ZegoEngine.getEngine().stopPlayStream(playStreamInfo);
             }

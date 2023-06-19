@@ -145,9 +145,58 @@
         android:layout_toStartOf="@id/v_center"/>
 
     <Button
-        android:id="@+id/btn_start_record"
+        android:id="@+id/btn_change_resolution"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/btn_delete_cdn_publish2"
+        android:layout_centerHorizontal="true"
+        android:text="changeResolution"/>
+
+    <Button
+        android:id="@+id/btn_delete_cdn_publish2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/btn_add_cdn_publish"
+        android:layout_alignParentEnd="true"
+        android:text="deleteCdnPublish2"/>
+
+    <Button
+        android:id="@+id/btn_add_cdn_publish2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/btn_add_cdn_publish"
+        android:layout_alignParentStart="true"
+        android:text="addCdnPublish2"/>
+
+    <Button
+        android:id="@+id/btn_delete_cdn_publish"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/btn_switch_camera"
+        android:layout_alignParentEnd="true"
+        android:text="deleteCdnPublish"/>
+
+    <Button
+        android:id="@+id/btn_add_cdn_publish"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/btn_switch_camera"
+        android:layout_alignParentStart="true"
+        android:text="addCdnPublish"/>
+
+    <Button
+        android:id="@+id/btn_switch_camera"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true"/>
+        android:layout_alignParentEnd="true"
+        android:text="switchCamera"/>
+
+    <Button
+        android:id="@+id/btn_audio_observer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true"
+        android:text="audioObserver"/>
 </RelativeLayout>
