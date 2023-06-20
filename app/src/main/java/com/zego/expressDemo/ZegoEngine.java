@@ -19,7 +19,8 @@ import com.zego.expressDemo.config.JavaGlobalConfig;
 import com.zego.expressDemo.data.Constant;
 import com.zego.expressDemo.data.User;
 import com.zego.expressDemo.data.ZegoDataCenter;
-import com.zego.expressDemo.filter.STFilter;
+import com.zego.expressDemo.filter.STFilterTemp;
+import com.zego.expressDemo.filter.Sense;
 import com.zego.expressDemo.utils.AnalyticsLog;
 import com.zego.expressDemo.utils.JsonUtil;
 import com.zego.expressDemo.utils.LogUtils;
@@ -347,7 +348,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         ZegoCustomVideoProcessConfig customVideoProcessConfig = new ZegoCustomVideoProcessConfig();
         customVideoProcessConfig.bufferType = ZegoVideoBufferType.GL_TEXTURE_2D;
         mExpressEngine.enableCustomVideoProcessing(true, customVideoProcessConfig);
-        mExpressEngine.setCustomVideoProcessHandler(new STFilter(BaseApplication.getInstance()));
+        mExpressEngine.setCustomVideoProcessHandler(Sense.getInstance());
 
         // CDN 流音频来源
         mExpressEngine.setAudioSource(ZegoAudioSourceType.MAIN_PUBLISH_CHANNEL, ZegoPublishChannel.AUX);
