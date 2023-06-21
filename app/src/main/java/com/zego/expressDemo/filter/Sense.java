@@ -660,8 +660,10 @@ public class Sense extends IZegoCustomVideoProcessHandler {
 
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, mFrameBuffers[0]);
 
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
         mGlDrawer.drawRgb(textureID, IDENTITY_MATRIX, width, height, 0, 0, width, height);
 
+        mReadPixelsByteBuffer.position(0);
         GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, mReadPixelsByteBuffer);
 
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
