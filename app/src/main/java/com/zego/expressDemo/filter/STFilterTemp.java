@@ -2,11 +2,15 @@ package com.zego.expressDemo.filter;
 
 import android.graphics.SurfaceTexture;
 import android.opengl.GLES20;
-import android.util.Log;
+import android.os.Environment;
 
 import com.zego.zegoavkit2.screencapture.ve_gl.GlRectDrawer;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 
 import im.zego.zegoexpress.ZegoExpressEngine;
 import im.zego.zegoexpress.callback.IZegoCustomVideoProcessHandler;
@@ -29,7 +33,6 @@ public class STFilterTemp extends IZegoCustomVideoProcessHandler {
 
     @Override
     public void onCapturedUnprocessedTextureData(int textureID, int width, int height, long referenceTimeMillisecond, ZegoPublishChannel channel) {
-        Log.d(TAG, "-->:: onCapturedUnprocessedTextureData start " + GLES20.glGetError());
         readBytesFromTexture(textureID, width, height);
         ZegoExpressEngine.getEngine().sendCustomVideoProcessedTextureData(textureID, width, height, referenceTimeMillisecond, channel);
     }
@@ -46,6 +49,7 @@ public class STFilterTemp extends IZegoCustomVideoProcessHandler {
     private int[] mFrameBufferTextures;
 
     private GlRectDrawer mGlDrawer;
+
 
     private byte[] readBytesFromTexture(int textureID, int width, int height) {
         if (mGlDrawer == null) {

@@ -67,6 +67,7 @@ import im.zego.zegoexpress.constants.ZegoStreamResourceMode;
 import im.zego.zegoexpress.constants.ZegoUpdateType;
 import im.zego.zegoexpress.constants.ZegoVideoBufferType;
 import im.zego.zegoexpress.constants.ZegoVideoCodecID;
+import im.zego.zegoexpress.constants.ZegoVideoConfigPreset;
 import im.zego.zegoexpress.constants.ZegoVideoFrameFormat;
 import im.zego.zegoexpress.constants.ZegoVideoMirrorMode;
 import im.zego.zegoexpress.constants.ZegoVideoSourceType;
@@ -362,6 +363,12 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         } else {
             setVideoMirrorMode(ZegoVideoMirrorMode.BOTH_MIRROR);
         }
+
+        // 设置采集分辨率固定为 540P
+        ZegoVideoConfig videoConfig = new ZegoVideoConfig(ZegoVideoConfigPreset.PRESET_360P);
+        videoConfig.captureWidth = 540;
+        videoConfig.captureHeight = 960;
+        mExpressEngine.setVideoConfig(videoConfig);
 
         // 音频编码格式，CDN 只支持 NORMAL
         ZegoAudioConfig mainAudioConfig = new ZegoAudioConfig();
