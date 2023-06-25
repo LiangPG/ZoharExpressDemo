@@ -1,6 +1,5 @@
 package com.zego.expressDemo.filter;
 
-import android.graphics.SurfaceTexture;
 import android.opengl.GLES20;
 
 import com.zego.zegoavkit2.screencapture.ve_gl.GlRectDrawer;
@@ -16,6 +15,9 @@ public class STFilterTemp extends IZegoCustomVideoProcessHandler {
 
     private final static float[] IDENTITY_MATRIX = new float[]{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
 
+    private int mInTextureWidth;
+    private int mInTextureHeight;
+
     @Override
     public void onStart(ZegoPublishChannel channel) {
         super.onStart(channel);
@@ -23,18 +25,41 @@ public class STFilterTemp extends IZegoCustomVideoProcessHandler {
 
     @Override
     public void onStop(ZegoPublishChannel channel) {
-        super.onStop(channel);
+        destroyReadPixelsResource();
+
+        mInTextureWidth = 0;
+        mInTextureHeight = 0;
+    }
+
+    private void destroyReadPixelsResource() {
+        if (mFrameBuffers != null) {
+            GLES20.glDeleteFramebuffers(mFrameBuffers.length, mFrameBuffers, 0);
+            mFrameBuffers = null;
+        }
+        if (mFrameBufferTextures != null) {
+            GLES20.glDeleteTextures(mFrameBufferTextures.length, mFrameBufferTextures, 0);
+            mFrameBufferTextures = null;
+        }
+
+        if (mGlDrawer != null) {
+            mGlDrawer.release();
+            mGlDrawer = null;
+        }
+
+        mReadPixelsByteBuffer = null;
+        mRgbaByteArray = null;
     }
 
     @Override
     public void onCapturedUnprocessedTextureData(int textureID, int width, int height, long referenceTimeMillisecond, ZegoPublishChannel channel) {
+        boolean isResolutionChange = mInTextureWidth != width || mInTextureHeight != height;
+        if (isResolutionChange) {
+            mInTextureWidth = width;
+            mInTextureHeight = height;
+            destroyReadPixelsResource();
+        }
         readBytesFromTexture(textureID, width, height);
         ZegoExpressEngine.getEngine().sendCustomVideoProcessedTextureData(textureID, width, height, referenceTimeMillisecond, channel);
-    }
-
-    @Override
-    public SurfaceTexture getCustomVideoProcessInputSurfaceTexture(int width, int height, ZegoPublishChannel channel) {
-        return super.getCustomVideoProcessInputSurfaceTexture(width, height, channel);
     }
 
     private ByteBuffer mReadPixelsByteBuffer;
@@ -69,12 +94,13 @@ public class STFilterTemp extends IZegoCustomVideoProcessHandler {
 
         mGlDrawer.drawRgb(textureID, IDENTITY_MATRIX, width, height, 0, 0, width, height);
 
+        mReadPixelsByteBuffer.position(0);
         GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, mReadPixelsByteBuffer);
-
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
 
         mReadPixelsByteBuffer.position(0);
         mReadPixelsByteBuffer.get(mRgbaByteArray);
+
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
 
         return mRgbaByteArray;
     }
