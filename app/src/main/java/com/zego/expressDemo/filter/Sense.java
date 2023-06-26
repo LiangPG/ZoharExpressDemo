@@ -178,14 +178,6 @@ public class Sense extends IZegoCustomVideoProcessHandler {
     public static void init() {
         LogUtils.d(TAG, "createEGLContextWithoutGL:");
         setInitializeState(false);
-        initTextureWithoutGL();
-    }
-
-    // 释放OpenGL环境，允许多次调用
-    public static void stDestroy() {
-        LogUtils.v(TAG, "stDestroyEGLContextWithoutGL:");
-        destroySenseTimeWithoutGL();
-        destroyTextureWithoutGL();
     }
 
     // 创建商汤SDK实例，调用方提供OpenGL环境
@@ -244,7 +236,10 @@ public class Sense extends IZegoCustomVideoProcessHandler {
             mFrameBufferTextures = null;
         }
 
-        mGlDrawer.release();
+        if (mGlDrawer != null) {
+            mGlDrawer.release();
+            mGlDrawer = null;
+        }
 
         mReadPixelsByteBuffer = null;
         mRgbaByteArray = null;
@@ -517,8 +512,26 @@ public class Sense extends IZegoCustomVideoProcessHandler {
     }
 
     @Override
+    public void onStop(ZegoPublishChannel channel) {
+        destroySenseTimeWithoutGL();
+
+        destroyTextureWithoutGL();
+        destroyReadPixelsResource();
+
+        mTextureWidthWithoutGL = 0;
+        mTextureHeightWithoutGL = 0;
+    }
+
+    private long mLastTime;
+
+    private void printConsume(String message) {
+        LogUtils.e(TAG, "--><:: " + message + ", consume: " + (System.currentTimeMillis() - mLastTime));
+        mLastTime = System.currentTimeMillis();
+    }
+
+    @Override
     public void onCapturedUnprocessedTextureData(int inTexture, int width, int height, long referenceTimeMillisecond, ZegoPublishChannel channel) {
-        LogUtils.e(TAG, "--><:: onCapturedUnprocessedTextureData start: " + GLES20.glGetError());
+        printConsume("onCapturedUnprocessedTextureData start");
         boolean isResolutionChange = mTextureWidthWithoutGL != width || mTextureHeightWithoutGL != height;
         if (isResolutionChange) {
             mTextureWidthWithoutGL = width;
@@ -526,12 +539,12 @@ public class Sense extends IZegoCustomVideoProcessHandler {
             destroyTextureWithoutGL();
             destroyReadPixelsResource();
 
-            LogUtils.e(TAG, "--><:: destroyReadPixelsResource after: " + GLES20.glGetError());
+            printConsume("destroyReadPixelsResource end");
         }
         initTextureWithoutGL();
         initSenseTimeWithoutGL();
 
-        LogUtils.e(TAG, "--><:: initSenseTimeWithoutGL after: " + GLES20.glGetError());
+        printConsume("initSenseTimeWithoutGL end");
 
         if (mNeedBeautify || mNeedSticker || mNeedFilter || mNeedMakeUp) {
             if (mNeedFilter) {
@@ -542,7 +555,7 @@ public class Sense extends IZegoCustomVideoProcessHandler {
                 }
             }
 
-            LogUtils.e(TAG, "--><:: mNeedFilter after: " + GLES20.glGetError());
+            printConsume("mNeedFilter end");
 
             if (mNeedBeautify || mNeedSticker || mNeedMakeUp) {
                 if (mStickerChangeWithoutGL) {
@@ -555,14 +568,18 @@ public class Sense extends IZegoCustomVideoProcessHandler {
                         mStickerIdWithoutGL = mSTMobileEffectNativeWithoutGL.addPackage(mSticker);
                     }
                 }
+
+                printConsume("addPackage end");
+
                 STHumanAction humanAction = null;
                 if (mNeedCheckHumanAction) {
-                    LogUtils.e(TAG, "--><:: nativeHumanActionDetectPtr start: " + GLES20.glGetError());
-                    mSTHumanActionNativeWithoutGL.nativeHumanActionDetectPtr(readBytesFromTexture(inTexture, width, height), STCommonNative.ST_PIX_FMT_RGBA8888,
+                    byte[] humanRgbaByteArray = readBytesFromTexture(inTexture, width, height);
+                    printConsume("readBytesFromTexture end");
+                    mSTHumanActionNativeWithoutGL.nativeHumanActionDetectPtr(humanRgbaByteArray, STCommonNative.ST_PIX_FMT_RGBA8888,
                             mDetectConfig, STRotateType.ST_CLOCKWISE_ROTATE_0, width, height);
-                    LogUtils.e(TAG, "--><:: nativeHumanActionDetectPtr end: " + GLES20.glGetError());
+                    printConsume("nativeHumanActionDetectPtr end");
                     humanAction = mSTHumanActionNativeWithoutGL.getNativeHumanAction();
-                    LogUtils.e(TAG, "--><:: nativeHumanActionDetectPtr humanAction: " + humanAction.getFaceCount());
+                    printConsume("getNativeHumanAction end");
 
                     if (humanAction != null && humanAction.getFaceCount() > 0) {
                         mFaceCount = humanAction.getFaceCount();
@@ -594,10 +611,9 @@ public class Sense extends IZegoCustomVideoProcessHandler {
                                 mSTMobileEffectNativeWithoutGL.setBeauty(entry.getKey(), path);
                             }
                             mSTMobileEffectNativeWithoutGL.setBeautyStrength(entry.getKey(), (float) entity.progress / 100);
-
-                            LogUtils.e(TAG, "--><:: setBeautyStrength after: " + GLES20.glGetError());
                         }
                     }
+                    printConsume("mNeedMakeUp end");
                 }
 
                 if (mNeedBeautify) {
@@ -608,31 +624,33 @@ public class Sense extends IZegoCustomVideoProcessHandler {
                         }
                     }
 
-                    LogUtils.e(TAG, "--><:: mNeedBeautify after: " + GLES20.glGetError());
+                    printConsume("mBeautyChangeWithoutGL end");
 
 
                     STEffectTexture stEffectTexture = new STEffectTexture(inTexture, width, height, 0);
                     STEffectTexture stEffectTextureOut = new STEffectTexture(mBeautifyTextureIdWithoutGL[0], width, height, 0);
 
-                    LogUtils.e(TAG, "--><:: render start: " + GLES20.glGetError());
+                    printConsume("render init");
 
                     STEffectRenderInParam sTEffectRenderInParam =
                             new STEffectRenderInParam(mSTHumanActionNativeWithoutGL.getNativeHumanActionResultPtr(), null, 3,
                                     STRotateType.ST_CLOCKWISE_ROTATE_0, false, null, stEffectTexture, null);
                     STEffectRenderOutParam stEffectRenderOutParam = new STEffectRenderOutParam(stEffectTextureOut, null, mHumanActionBeautyOutputWithoutGL);
 
+                    printConsume("render start");
+
                     int result = mSTMobileEffectNativeWithoutGL.render(sTEffectRenderInParam, stEffectRenderOutParam, false);
 
-                    LogUtils.e(TAG, "--><:: render end: " + GLES20.glGetError());
+                    printConsume("render end");
 
                     int outTexture = inTexture;
                     if (result == 0) {
                         outTexture = mBeautifyTextureIdWithoutGL[0];
                     }
 
-                    LogUtils.e(TAG, "--><:: sendCustomVideoProcessedTextureData start: " + GLES20.glGetError());
+                    printConsume("sendCustomVideoProcessedTextureData start");
                     ZegoExpressEngine.getEngine().sendCustomVideoProcessedTextureData(outTexture, width, height, referenceTimeMillisecond, channel);
-                    LogUtils.e(TAG, "--><:: sendCustomVideoProcessedTextureData end: " + GLES20.glGetError());
+                    printConsume("sendCustomVideoProcessedTextureData end");
                 }
             }
         }
