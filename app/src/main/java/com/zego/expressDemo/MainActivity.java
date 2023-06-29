@@ -11,6 +11,8 @@ import android.widget.Toast;
 import com.zego.expressDemo.bean.ZegoVideoCanvas;
 import com.zego.expressDemo.data.ZegoDataCenter;
 
+import java.util.Random;
+
 import im.zego.zegoexpress.constants.ZegoPublishChannel;
 
 public class MainActivity extends BaseActivity implements CompoundButton.OnCheckedChangeListener {
@@ -258,14 +260,16 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
     }
 
     public ZegoEngine.UserStreamInfo getPlayStreamInfo(ZegoPublishChannel channel) {
-        return new ZegoEngine.UserStreamInfo(channel.value(), getPlayTarget(channel), channel == ZegoPublishChannel.MAIN ? ZegoEngine.StreamType.RTC : ZegoEngine.StreamType.CDN);
+        ZegoEngine.UserStreamInfo playStreamInfo = new ZegoEngine.UserStreamInfo(channel.value(), getPlayTarget(channel), channel == ZegoPublishChannel.MAIN ? ZegoEngine.StreamType.RTC : ZegoEngine.StreamType.CDN);
+        playStreamInfo.setQuicFirst(new Random().nextBoolean()); // 为了测试，随机使用 quic
+        return playStreamInfo;
     }
 
     public String getPublishTarget(ZegoPublishChannel channel) {
         if (channel == ZegoPublishChannel.MAIN) {
             return "rtc_stream";
         } else {
-            return "rtmp://wsdemo.zego.im/miniapp/" + channel.name();
+            return "rtmp://publish-ws-quic.zegotech.cn/quic_test/" + channel.name();
         }
     }
 
@@ -273,7 +277,7 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
         if (channel == ZegoPublishChannel.MAIN) {
             return "rtc_stream";
         } else {
-            return "rtmp://rtmp.wsdemo.zego.im/miniapp/" + channel.name();
+            return "rtmp://rtmp-ws-quic.zegotech.cn/quic_test/" + channel.name();
         }
     }
 }

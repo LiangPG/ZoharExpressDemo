@@ -1478,6 +1478,10 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
             case CDN:
                 ZegoCDNConfig cdnConfig = new ZegoCDNConfig();
                 cdnConfig.url = playStreamInfo.target;
+                if (playStreamInfo.isQuicFirst) {
+                    cdnConfig.protocol = "quic,tcp"; // 优先 quic, tcp 保底
+                    cdnConfig.quicVersion = "43"; // 引擎只支持 QQuic，推荐使用 43 版本
+                }
 
                 ZegoPlayerConfig playerConfig = new ZegoPlayerConfig();
                 playerConfig.cdnConfig = cdnConfig;
@@ -1873,6 +1877,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         private final StreamType streamType;
         private boolean is265Encoder;
         private boolean is265Decoder;
+        private boolean isQuicFirst; // 是否优先使用 quic 协议拉流。
 
         public UserStreamInfo(long userID, String target, StreamType streamType) {
             this.userID = userID;
@@ -1894,6 +1899,14 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
 
         public void set265Decoder(boolean is265Decoder) {
             this.is265Decoder = is265Decoder;
+        }
+
+        public boolean isQuicFirst() {
+            return isQuicFirst;
+        }
+
+        public void setQuicFirst(boolean quicFirst) {
+            isQuicFirst = quicFirst;
         }
 
         @Override
