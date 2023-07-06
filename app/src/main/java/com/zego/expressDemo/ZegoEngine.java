@@ -1073,7 +1073,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      * 切换镜像
      */
     public void switchMirrorMode(Boolean isChecked) {
-        if (isFontCamera) {
+        if (!isFontCamera) {
             //切换到后置
             if (isChecked) {
                 setVideoMirrorMode(ZegoVideoMirrorMode.ONLY_PUBLISH_MIRROR);
