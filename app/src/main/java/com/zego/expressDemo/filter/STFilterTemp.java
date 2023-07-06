@@ -1,6 +1,7 @@
 package com.zego.expressDemo.filter;
 
 import android.opengl.GLES20;
+import android.util.Log;
 
 import com.zego.zegoavkit2.screencapture.ve_gl.GlRectDrawer;
 
@@ -9,6 +10,7 @@ import java.nio.ByteBuffer;
 import im.zego.zegoexpress.ZegoExpressEngine;
 import im.zego.zegoexpress.callback.IZegoCustomVideoProcessHandler;
 import im.zego.zegoexpress.constants.ZegoPublishChannel;
+import im.zego.zegoexpress.entity.ZegoVideoFrameParam;
 
 public class STFilterTemp extends IZegoCustomVideoProcessHandler {
     private final static String TAG = STFilterTemp.class.getSimpleName();
@@ -48,17 +50,59 @@ public class STFilterTemp extends IZegoCustomVideoProcessHandler {
 
         mReadPixelsByteBuffer = null;
         mRgbaByteArray = null;
+        mI420ByteArray = null;
+        mCopyI420ByteArray = null;
+    }
+
+    private final Object I420_BYTE_ARRAY_LOCK = new Object();
+
+    private int mI420Width;
+    private int mI420Height;
+    private byte[] mI420ByteArray;
+    private byte[] mCopyI420ByteArray;
+
+    private long mLastTime;
+
+    private void printConsume(String message) {
+        Log.e(TAG, "-->:: " + message + ", consume: " + (System.currentTimeMillis() - mLastTime));
+        mLastTime = System.currentTimeMillis();
+    }
+
+    @Override
+    public void onCapturedUnprocessedRawData(ByteBuffer data, int[] dataLength, ZegoVideoFrameParam param, long referenceTimeMillisecond, ZegoPublishChannel channel) {
+        mI420Width = param.width;
+        mI420Height = param.height;
+        synchronized (I420_BYTE_ARRAY_LOCK) {
+            if (mI420ByteArray == null || mI420ByteArray.length != data.capacity()) {
+                mI420ByteArray = new byte[data.capacity()];
+                mCopyI420ByteArray = new byte[data.capacity()];
+            }
+            data.position(0);
+            data.get(mI420ByteArray);
+            data.position(0);
+        }
     }
 
     @Override
     public void onCapturedUnprocessedTextureData(int textureID, int width, int height, long referenceTimeMillisecond, ZegoPublishChannel channel) {
+        Log.d(TAG, "-->:: onCapturedUnprocessedTextureData");
         boolean isResolutionChange = mInTextureWidth != width || mInTextureHeight != height;
         if (isResolutionChange) {
             mInTextureWidth = width;
             mInTextureHeight = height;
             destroyReadPixelsResource();
         }
-        readBytesFromTexture(textureID, width, height);
+        if (mI420ByteArray == null || width != mI420Width || height != mI420Height) { // 当 byteArray == null 或者分辨率不一致的情况，都需要 readBytesFromTexture
+            printConsume("readBytesFromTexture start");
+            readBytesFromTexture(textureID, width, height);
+            printConsume("readBytesFromTexture end");
+        } else {
+            printConsume("onCapturedUnprocessedTextureData copy start");
+            synchronized (I420_BYTE_ARRAY_LOCK) {
+                System.arraycopy(mI420ByteArray, 0, mCopyI420ByteArray, 0, mI420ByteArray.length);
+            }
+            printConsume("onCapturedUnprocessedTextureData copy end");
+        }
         ZegoExpressEngine.getEngine().sendCustomVideoProcessedTextureData(textureID, width, height, referenceTimeMillisecond, channel);
     }
 

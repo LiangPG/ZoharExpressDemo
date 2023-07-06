@@ -346,7 +346,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         mExpressEngine.setCapturePipelineScaleMode(ZegoCapturePipelineScaleMode.POST);
 
         ZegoCustomVideoProcessConfig customVideoProcessConfig = new ZegoCustomVideoProcessConfig();
-        customVideoProcessConfig.bufferType = ZegoVideoBufferType.GL_TEXTURE_2D;
+        customVideoProcessConfig.bufferType = ZegoVideoBufferType.GL_TEXTURE_2D_AND_RAW_DATA;
         mExpressEngine.enableCustomVideoProcessing(true, customVideoProcessConfig);
         mExpressEngine.setCustomVideoProcessHandler(Sense.getInstance());
 

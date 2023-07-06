@@ -47,6 +47,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import im.zego.zegoexpress.ZegoExpressEngine;
 import im.zego.zegoexpress.callback.IZegoCustomVideoProcessHandler;
 import im.zego.zegoexpress.constants.ZegoPublishChannel;
+import im.zego.zegoexpress.entity.ZegoVideoFrameParam;
 
 /**
  * 商汤美颜接口封装
@@ -522,11 +523,33 @@ public class Sense extends IZegoCustomVideoProcessHandler {
         mTextureHeightWithoutGL = 0;
     }
 
+    private final Object I420_BYTE_ARRAY_LOCK = new Object();
+
+    private int mI420Width;
+    private int mI420Height;
+    private byte[] mI420ByteArray;
+    private byte[] mCopyI420ByteArray;
+
     private long mLastTime;
 
     private void printConsume(String message) {
         LogUtils.e(TAG, "--><:: " + message + ", consume: " + (System.currentTimeMillis() - mLastTime));
         mLastTime = System.currentTimeMillis();
+    }
+
+    @Override
+    public void onCapturedUnprocessedRawData(ByteBuffer data, int[] dataLength, ZegoVideoFrameParam param, long referenceTimeMillisecond, ZegoPublishChannel channel) {
+        mI420Width = param.width;
+        mI420Height = param.height;
+        synchronized (I420_BYTE_ARRAY_LOCK) {
+            if (mI420ByteArray == null || mI420ByteArray.length != data.capacity()) {
+                mI420ByteArray = new byte[data.capacity()];
+                mCopyI420ByteArray = new byte[data.capacity()];
+            }
+            data.position(0);
+            data.get(mI420ByteArray);
+            data.position(0);
+        }
     }
 
     @Override
@@ -573,10 +596,21 @@ public class Sense extends IZegoCustomVideoProcessHandler {
 
                 STHumanAction humanAction = null;
                 if (mNeedCheckHumanAction) {
-                    byte[] humanRgbaByteArray = readBytesFromTexture(inTexture, width, height);
-                    printConsume("readBytesFromTexture end");
-                    mSTHumanActionNativeWithoutGL.nativeHumanActionDetectPtr(humanRgbaByteArray, STCommonNative.ST_PIX_FMT_RGBA8888,
-                            mDetectConfig, STRotateType.ST_CLOCKWISE_ROTATE_0, width, height);
+                    if (mI420ByteArray == null || width != mI420Width || height != mI420Height) { // 当 byteArray == null 或者分辨率不一致的情况，都需要 readBytesFromTexture
+                        printConsume("readBytesFromTexture start");
+                        byte[] humanRgbaByteArray = readBytesFromTexture(inTexture, width, height);
+                        printConsume("readBytesFromTexture end");
+                        mSTHumanActionNativeWithoutGL.nativeHumanActionDetectPtr(humanRgbaByteArray, STCommonNative.ST_PIX_FMT_RGBA8888,
+                                mDetectConfig, STRotateType.ST_CLOCKWISE_ROTATE_0, width, height);
+                    } else {
+                        printConsume("onCapturedUnprocessedTextureData copy start");
+                        synchronized (I420_BYTE_ARRAY_LOCK) {
+                            System.arraycopy(mI420ByteArray, 0, mCopyI420ByteArray, 0, mI420ByteArray.length);
+                        }
+                        printConsume("onCapturedUnprocessedTextureData copy end");
+                        mSTHumanActionNativeWithoutGL.nativeHumanActionDetectPtr(mCopyI420ByteArray, STCommonNative.ST_PIX_FMT_YUV420P,
+                                mDetectConfig, STRotateType.ST_CLOCKWISE_ROTATE_0, width, height);
+                    }
                     printConsume("nativeHumanActionDetectPtr end");
                     humanAction = mSTHumanActionNativeWithoutGL.getNativeHumanAction();
                     printConsume("getNativeHumanAction end");
