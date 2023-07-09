@@ -28,6 +28,8 @@ public class STFilterTemp extends IZegoCustomVideoProcessHandler {
     @Override
     public void onStop(ZegoPublishChannel channel) {
         destroyReadPixelsResource();
+        mI420ByteArray = null;
+        mCopyI420ByteArray = null;
 
         mInTextureWidth = 0;
         mInTextureHeight = 0;
@@ -50,8 +52,6 @@ public class STFilterTemp extends IZegoCustomVideoProcessHandler {
 
         mReadPixelsByteBuffer = null;
         mRgbaByteArray = null;
-        mI420ByteArray = null;
-        mCopyI420ByteArray = null;
     }
 
     private final Object I420_BYTE_ARRAY_LOCK = new Object();
@@ -70,40 +70,66 @@ public class STFilterTemp extends IZegoCustomVideoProcessHandler {
 
     @Override
     public void onCapturedUnprocessedRawData(ByteBuffer data, int[] dataLength, ZegoVideoFrameParam param, long referenceTimeMillisecond, ZegoPublishChannel channel) {
-        mI420Width = param.width;
-        mI420Height = param.height;
         synchronized (I420_BYTE_ARRAY_LOCK) {
-            if (mI420ByteArray == null || mI420ByteArray.length != data.capacity()) {
-                mI420ByteArray = new byte[data.capacity()];
-                mCopyI420ByteArray = new byte[data.capacity()];
+            mI420Width = param.width;
+            mI420Height = param.height;
+            int sumDataLength = param.width * param.height * 3 / 2; // 总长度，明确清楚是 i420 的情况
+            if (mI420ByteArray == null || mI420ByteArray.length != sumDataLength) {
+                mI420ByteArray = new byte[sumDataLength];
+                mCopyI420ByteArray = new byte[sumDataLength];
             }
-            data.position(0);
-            data.get(mI420ByteArray);
-            data.position(0);
+
+            if (sumDataLength == data.capacity()) {
+                data.get(mI420ByteArray);
+            } else {
+                data.position(0); // 先将位置调节到 0
+                for (int i = 0; i < param.height; i++) { // 读 Y 的数据，每次读 width 的内容，每次跳转到 i * yStrides
+                    data.position(i * param.strides[0]);
+                    data.get(mI420ByteArray, i * param.width, param.width);  // 每次读 width 的内容
+                }
+                for (int i = 0; i < param.height / 2; i++) { // 读 U 的数据，每次读 width / 2 的内容，每次跳转到 data[0] + i * uStrides
+                    data.position(dataLength[0] + i * param.strides[1]);
+                    data.get(mI420ByteArray, param.width * param.height + i * param.width / 2, param.width / 2);
+                }
+                for (int i = 0; i < param.height / 2; i++) { // 读 Y 的数据，每次读 width / 2 的内容，每次跳转到 data[0] + i * yStrides
+                    data.position(dataLength[0] + dataLength[1] + i * param.strides[2]);
+                    data.get(mI420ByteArray, param.width * param.height * 5 / 4 + i * param.width / 2, param.width / 2);
+                }
+
+                data.position(0); // 重置位置到 0
+            }
         }
     }
 
     @Override
     public void onCapturedUnprocessedTextureData(int textureID, int width, int height, long referenceTimeMillisecond, ZegoPublishChannel channel) {
-        Log.d(TAG, "-->:: onCapturedUnprocessedTextureData");
+        printConsume("onCapturedUnprocessedTextureData");
         boolean isResolutionChange = mInTextureWidth != width || mInTextureHeight != height;
         if (isResolutionChange) {
             mInTextureWidth = width;
             mInTextureHeight = height;
             destroyReadPixelsResource();
         }
-        if (mI420ByteArray == null || width != mI420Width || height != mI420Height) { // 当 byteArray == null 或者分辨率不一致的情况，都需要 readBytesFromTexture
+
+        boolean needFallbackReadBytes;
+        synchronized (I420_BYTE_ARRAY_LOCK) {
+            needFallbackReadBytes = mI420ByteArray == null || width != mI420Width || height != mI420Height;
+            if (!needFallbackReadBytes) {
+                printConsume("onCapturedUnprocessedTextureData copy start");
+
+                System.arraycopy(mI420ByteArray, 0, mCopyI420ByteArray, 0, mI420ByteArray.length);
+                printConsume("onCapturedUnprocessedTextureData copy end");
+            }
+        }
+
+        if (needFallbackReadBytes) {
             printConsume("readBytesFromTexture start");
             readBytesFromTexture(textureID, width, height);
             printConsume("readBytesFromTexture end");
-        } else {
-            printConsume("onCapturedUnprocessedTextureData copy start");
-            synchronized (I420_BYTE_ARRAY_LOCK) {
-                System.arraycopy(mI420ByteArray, 0, mCopyI420ByteArray, 0, mI420ByteArray.length);
-            }
-            printConsume("onCapturedUnprocessedTextureData copy end");
         }
+        printConsume("sendCustomVideoProcessedTextureData start");
         ZegoExpressEngine.getEngine().sendCustomVideoProcessedTextureData(textureID, width, height, referenceTimeMillisecond, channel);
+        printConsume("sendCustomVideoProcessedTextureData end");
     }
 
     private ByteBuffer mReadPixelsByteBuffer;

@@ -521,6 +521,9 @@ public class Sense extends IZegoCustomVideoProcessHandler {
 
         mTextureWidthWithoutGL = 0;
         mTextureHeightWithoutGL = 0;
+
+        mI420ByteArray = null;
+        mCopyI420ByteArray = null;
     }
 
     private final Object I420_BYTE_ARRAY_LOCK = new Object();
@@ -539,16 +542,34 @@ public class Sense extends IZegoCustomVideoProcessHandler {
 
     @Override
     public void onCapturedUnprocessedRawData(ByteBuffer data, int[] dataLength, ZegoVideoFrameParam param, long referenceTimeMillisecond, ZegoPublishChannel channel) {
-        mI420Width = param.width;
-        mI420Height = param.height;
         synchronized (I420_BYTE_ARRAY_LOCK) {
-            if (mI420ByteArray == null || mI420ByteArray.length != data.capacity()) {
-                mI420ByteArray = new byte[data.capacity()];
-                mCopyI420ByteArray = new byte[data.capacity()];
+            mI420Width = param.width;
+            mI420Height = param.height;
+            int sumDataLength = param.width * param.height * 3 / 2; // 总长度，明确清楚是 i420 的情况
+            if (mI420ByteArray == null || mI420ByteArray.length != sumDataLength) {
+                mI420ByteArray = new byte[sumDataLength];
+                mCopyI420ByteArray = new byte[sumDataLength];
             }
-            data.position(0);
-            data.get(mI420ByteArray);
-            data.position(0);
+
+            if (sumDataLength == data.capacity()) {
+                data.get(mI420ByteArray);
+            } else {
+                data.position(0); // 先将位置调节到 0
+                for (int i = 0; i < param.height; i++) { // 读 Y 的数据，每次读 width 的内容，每次跳转到 i * yStrides
+                    data.position(i * param.strides[0]);
+                    data.get(mI420ByteArray, i * param.width, param.width);  // 每次读 width 的内容
+                }
+                for (int i = 0; i < param.height / 2; i++) { // 读 U 的数据，每次读 width / 2 的内容，每次跳转到 data[0] + i * uStrides
+                    data.position(dataLength[0] + i * param.strides[1]);
+                    data.get(mI420ByteArray, param.width * param.height + i * param.width / 2, param.width / 2);
+                }
+                for (int i = 0; i < param.height / 2; i++) { // 读 Y 的数据，每次读 width / 2 的内容，每次跳转到 data[0] + i * yStrides
+                    data.position(dataLength[0] + dataLength[1] + i * param.strides[2]);
+                    data.get(mI420ByteArray, param.width * param.height * 5 / 4 + i * param.width / 2, param.width / 2);
+                }
+
+                data.position(0); // 重置位置到 0
+            }
         }
     }
 
@@ -596,19 +617,22 @@ public class Sense extends IZegoCustomVideoProcessHandler {
 
                 STHumanAction humanAction = null;
                 if (mNeedCheckHumanAction) {
-                    if (mI420ByteArray == null || width != mI420Width || height != mI420Height) { // 当 byteArray == null 或者分辨率不一致的情况，都需要 readBytesFromTexture
+                    boolean needFallbackReadBytes;
+                    synchronized (I420_BYTE_ARRAY_LOCK) {
+                        needFallbackReadBytes = mI420ByteArray == null || width != mI420Width || height != mI420Height;
+                        if (!needFallbackReadBytes) {
+                            printConsume("onCapturedUnprocessedTextureData copy start");
+                            System.arraycopy(mI420ByteArray, 0, mCopyI420ByteArray, 0, mI420ByteArray.length);
+                            printConsume("onCapturedUnprocessedTextureData copy end");
+                            mSTHumanActionNativeWithoutGL.nativeHumanActionDetectPtr(mCopyI420ByteArray, STCommonNative.ST_PIX_FMT_YUV420P,
+                                    mDetectConfig, STRotateType.ST_CLOCKWISE_ROTATE_0, width, height);
+                        }
+                    }
+                    if (needFallbackReadBytes) { // 当 byteArray == null 或者分辨率不一致的情况，都需要 readBytesFromTexture
                         printConsume("readBytesFromTexture start");
                         byte[] humanRgbaByteArray = readBytesFromTexture(inTexture, width, height);
                         printConsume("readBytesFromTexture end");
                         mSTHumanActionNativeWithoutGL.nativeHumanActionDetectPtr(humanRgbaByteArray, STCommonNative.ST_PIX_FMT_RGBA8888,
-                                mDetectConfig, STRotateType.ST_CLOCKWISE_ROTATE_0, width, height);
-                    } else {
-                        printConsume("onCapturedUnprocessedTextureData copy start");
-                        synchronized (I420_BYTE_ARRAY_LOCK) {
-                            System.arraycopy(mI420ByteArray, 0, mCopyI420ByteArray, 0, mI420ByteArray.length);
-                        }
-                        printConsume("onCapturedUnprocessedTextureData copy end");
-                        mSTHumanActionNativeWithoutGL.nativeHumanActionDetectPtr(mCopyI420ByteArray, STCommonNative.ST_PIX_FMT_YUV420P,
                                 mDetectConfig, STRotateType.ST_CLOCKWISE_ROTATE_0, width, height);
                     }
                     printConsume("nativeHumanActionDetectPtr end");

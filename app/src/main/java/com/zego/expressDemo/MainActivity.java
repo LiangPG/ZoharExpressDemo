@@ -1,19 +1,27 @@
 package com.zego.expressDemo;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Surface;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
 
 import com.zego.expressDemo.bean.ZegoVideoCanvas;
 import com.zego.expressDemo.data.ZegoDataCenter;
 
 import java.util.Random;
 
+import im.zego.zegoexpress.ZegoExpressEngine;
+import im.zego.zegoexpress.constants.ZegoOrientation;
 import im.zego.zegoexpress.constants.ZegoPublishChannel;
+import im.zego.zegoexpress.constants.ZegoVideoMirrorMode;
 
 public class MainActivity extends BaseActivity implements CompoundButton.OnCheckedChangeListener {
 
@@ -73,53 +81,7 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
         findViewById(R.id.btn_join_live).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String roomID = mEtRoomID.getText().toString().trim();
-                if (roomID.isEmpty()) {
-                    Toast.makeText(MainActivity.this, "房间ID不能为 null", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                isJoinLive = true;
-
-                ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, 1);
-                ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, 2);
-//                ZegoEngine.getEngine().setVideoConfig(240, 432, 15, 350, ZegoPublishChannel.MAIN);
-//                ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, ZegoPublishChannel.AUX);
-//                ZegoEngine.getEngine().setVideoConfig(360, 640, 15, 400, ZegoPublishChannel.THIRD);
-//                ZegoEngine.getEngine().setVideoConfig(270, 480, 15, 250, ZegoPublishChannel.FOURTH);
-
-                ZegoEngine.JoinLiveBuilder builder = ZegoEngine.getLiveBuilder(roomID);
-                if (mCbPublishMain.isChecked()) {
-                    builder.putPublishStreamInfo(getPublishStreamInfo(ZegoPublishChannel.MAIN));
-                }
-                if (mCbPublishAux.isChecked()) {
-                    builder.putPublishStreamInfo(getPublishStreamInfo(ZegoPublishChannel.AUX));
-                }
-                if (mCbPublishThird.isChecked()) {
-                    builder.putPublishStreamInfo(getPublishStreamInfo(ZegoPublishChannel.THIRD));
-                }
-                if (mCbPublishFourth.isChecked()) {
-                    builder.putPublishStreamInfo(getPublishStreamInfo(ZegoPublishChannel.FOURTH));
-                }
-                if (mCbPlayMain.isChecked()) {
-                    builder.addPlayStreamInfo(getPlayStreamInfo(ZegoPublishChannel.MAIN));
-                }
-                if (mCbPlayAux.isChecked()) {
-                    builder.addPlayStreamInfo(getPlayStreamInfo(ZegoPublishChannel.AUX));
-                }
-                if (mCbPlayThird.isChecked()) {
-                    builder.addPlayStreamInfo(getPlayStreamInfo(ZegoPublishChannel.THIRD));
-
-                }
-                if (mCbPlayFourth.isChecked()) {
-                    builder.addPlayStreamInfo(getPlayStreamInfo(ZegoPublishChannel.FOURTH));
-                }
-                builder.joinLive();
-
-                ZegoEngine.getEngine().startPreview();
-                ZegoEngine.getEngine().setLocalVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_preview), 0));
-                ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_main), ZegoPublishChannel.MAIN.value()));
-                ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_aux), ZegoPublishChannel.AUX.value()));
+                joinLive();
             }
         });
 
@@ -131,7 +93,7 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
                     ZegoEngine.getEngine().startAudioCaptureDataObserver(new IZegoAudioCaptureDataHandler() {
                         @Override
                         public void onCapturedAudioData(byte[] data, int dataLength, int sampleRate, int channel) {
-                            Log.d(TAG, "-->:: onCapturedAudioData data[0]: " +data[0]);
+                            Log.d(TAG, "-->:: onCapturedAudioData data[0]: " + data[0]);
                         }
                     });
                 } else {
@@ -180,15 +142,94 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
             public void onClick(View v) {
                 isLow = !isLow;
                 if (isLow) {
-                    ZegoEngine.getEngine().setVideoConfig(180, 320, 15, 80, 1);
+                    ZegoEngine.getEngine().setVideoConfig(isPortrait()? 180 : 320, isPortrait() ? 320 : 180, 15, 80, 1);
                 } else {
-                    ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, 1);
+                    ZegoEngine.getEngine().setVideoConfig(isPortrait()? 544 : 960, isPortrait() ? 960 : 544, 15, 900, 1);
+                }
+            }
+        });
+
+        findViewById(R.id.btn_switch_mirror).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                isBothMirror = !isBothMirror;
+                if (isBothMirror) {
+                    ZegoExpressEngine.getEngine().setVideoMirrorMode(ZegoVideoMirrorMode.BOTH_MIRROR);
+                } else {
+                    ZegoExpressEngine.getEngine().setVideoMirrorMode(ZegoVideoMirrorMode.ONLY_PREVIEW_MIRROR);
                 }
             }
         });
     }
 
+    @Override
+    protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        joinLive();
+    }
+
+    private void joinLive() {
+        String roomID = mEtRoomID.getText().toString().trim();
+        if (roomID.isEmpty()) {
+            Toast.makeText(MainActivity.this, "房间ID不能为 null", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        isJoinLive = true;
+
+        mRotation = ((WindowManager) getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay().getRotation();
+
+        ZegoEngine.getEngine().setVideoConfig(isPortrait() ? 544 : 960, isPortrait() ? 960 : 544, 15, 900, 1);
+        ZegoEngine.getEngine().setVideoConfig(isPortrait() ? 544 : 960, isPortrait() ? 960 : 544, 15, 900, 2);
+//                ZegoEngine.getEngine().setVideoConfig(240, 432, 15, 350, ZegoPublishChannel.MAIN);
+//                ZegoEngine.getEngine().setVideoConfig(544, 960, 15, 900, ZegoPublishChannel.AUX);
+//                ZegoEngine.getEngine().setVideoConfig(360, 640, 15, 400, ZegoPublishChannel.THIRD);
+//                ZegoEngine.getEngine().setVideoConfig(270, 480, 15, 250, ZegoPublishChannel.FOURTH);
+
+        ZegoEngine.JoinLiveBuilder builder = ZegoEngine.getLiveBuilder(roomID);
+        if (mCbPublishMain.isChecked()) {
+            builder.putPublishStreamInfo(getPublishStreamInfo(ZegoPublishChannel.MAIN));
+        }
+        if (mCbPublishAux.isChecked()) {
+            builder.putPublishStreamInfo(getPublishStreamInfo(ZegoPublishChannel.AUX));
+        }
+        if (mCbPublishThird.isChecked()) {
+            builder.putPublishStreamInfo(getPublishStreamInfo(ZegoPublishChannel.THIRD));
+        }
+        if (mCbPublishFourth.isChecked()) {
+            builder.putPublishStreamInfo(getPublishStreamInfo(ZegoPublishChannel.FOURTH));
+        }
+        if (mCbPlayMain.isChecked()) {
+            builder.addPlayStreamInfo(getPlayStreamInfo(ZegoPublishChannel.MAIN));
+        }
+        if (mCbPlayAux.isChecked()) {
+            builder.addPlayStreamInfo(getPlayStreamInfo(ZegoPublishChannel.AUX));
+        }
+        if (mCbPlayThird.isChecked()) {
+            builder.addPlayStreamInfo(getPlayStreamInfo(ZegoPublishChannel.THIRD));
+
+        }
+        if (mCbPlayFourth.isChecked()) {
+            builder.addPlayStreamInfo(getPlayStreamInfo(ZegoPublishChannel.FOURTH));
+        }
+        builder.joinLive();
+
+        ZegoExpressEngine.getEngine().setAppOrientation(ZegoOrientation.getZegoOrientation(mRotation));
+
+        ZegoEngine.getEngine().startPreview();
+        ZegoEngine.getEngine().setLocalVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_preview), 0));
+        ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_main), ZegoPublishChannel.MAIN.value()));
+        ZegoEngine.getEngine().setRemoteVideoCanvas(new ZegoVideoCanvas(findViewById(R.id.ttv_aux), ZegoPublishChannel.AUX.value()));
+    }
+
+    int mRotation = 0;
+
+    private boolean isPortrait() {
+        return mRotation == 0 || mRotation == Surface.ROTATION_180;
+    }
+
     private boolean isLow = false;
+    private boolean isBothMirror = false;
 
     @Override
     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
