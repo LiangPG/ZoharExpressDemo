@@ -1,6 +1,5 @@
 package com.zego.expressDemo.filter;
 
-import static com.sensetime.stmobile.STMobileHumanActionNative.ST_MOBILE_BROW_JUMP;
 import static com.sensetime.stmobile.STMobileHumanActionNative.ST_MOBILE_EYE_BLINK;
 import static com.sensetime.stmobile.STMobileHumanActionNative.ST_MOBILE_FACE_DETECT;
 import static com.sensetime.stmobile.STMobileHumanActionNative.ST_MOBILE_HEAD_PITCH;
@@ -50,12 +49,13 @@ import im.zego.zegoexpress.constants.ZegoPublishChannel;
 import im.zego.zegoexpress.entity.ZegoVideoFrameParam;
 
 /**
+ * 关键字 softsugar
  * 商汤美颜接口封装
- * 2019-07-14 阿宝
+ * 2023-06-29 wk
  */
 @TargetApi(17)
 public class Sense extends IZegoCustomVideoProcessHandler {
-    private static final String TAG = "Senseme";
+    private static final String TAG = "Sense";
     private static Context mContext;
 
     private final static float[] IDENTITY_MATRIX = new float[]{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
@@ -98,35 +98,35 @@ public class Sense extends IZegoCustomVideoProcessHandler {
     // 美颜相关
     private static final ConcurrentHashMap<Integer, Integer> mBeautifyParams = new ConcurrentHashMap<Integer, Integer>() {
         {
-            put(STEffectBeautyType.EFFECT_BEAUTY_BASE_FACE_SMOOTH, 50);
-            put(STEffectBeautyType.EFFECT_BEAUTY_BASE_WHITTEN, 20);
-            put(STEffectBeautyType.EFFECT_BEAUTY_BASE_REDDEN, 0);
-            put(STEffectBeautyType.EFFECT_BEAUTY_TONE_CONTRAST, 0);  //对比度
-            put(STEffectBeautyType.EFFECT_BEAUTY_TONE_SATURATION, 0); //饱和度
-            put(STEffectBeautyType.EFFECT_BEAUTY_RESHAPE_ENLARGE_EYE, 29);
-            put(STEffectBeautyType.EFFECT_BEAUTY_RESHAPE_SHRINK_FACE, 34);
-            put(STEffectBeautyType.EFFECT_BEAUTY_RESHAPE_NARROW_FACE, 25);
+            put(STEffectBeautyType.EFFECT_BEAUTY_BASE_FACE_SMOOTH, 60);//< 磨皮, [0,1.0], 默认值0.74, 0.0不做磨皮
+            put(STEffectBeautyType.EFFECT_BEAUTY_BASE_WHITTEN, 35);//< 美白，[0,1.0], 默认值0.30, 0.0不做美白
+            put(STEffectBeautyType.EFFECT_BEAUTY_BASE_REDDEN, 50);//< 红润, [0,1.0], 默认值0.36, 0.0不做红润
+            put(STEffectBeautyType.EFFECT_BEAUTY_TONE_CONTRAST, 0); //< 对比度, [0,1.0], 默认值0.05, 0.0不做对比度处理
+            put(STEffectBeautyType.EFFECT_BEAUTY_TONE_SATURATION, 0); //< 饱和度, [0,1.0], 默认值0.10, 0.0不做饱和度处理
+            put(STEffectBeautyType.EFFECT_BEAUTY_RESHAPE_ENLARGE_EYE, 35);//< 大眼, [0,1.0], 默认值0.13, 0.0不做大眼效果
+            put(STEffectBeautyType.EFFECT_BEAUTY_RESHAPE_SHRINK_FACE, 15);//< 瘦脸, [0,1.0], 默认值0.11, 0.0不做瘦脸效果
+            put(STEffectBeautyType.EFFECT_BEAUTY_RESHAPE_NARROW_FACE, 10);//< 窄脸, [0,1.0], 默认值0.0, 0.0不做窄脸
 
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_HAIRLINE_HEIGHT, 20);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_NOSE_LENGTH, 0);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_NARROW_NOSE, 21);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_PHILTRUM_LENGTH, 0);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_MOUTH_SIZE, 50);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_CHIN_LENGTH, 20);
-            put(STEffectBeautyType.EFFECT_BEAUTY_RESHAPE_SHRINK_JAW, 10);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_PROFILE_RHINOPLASTY, 10);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_OPEN_CANTHUS, 0);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_BRIGHT_EYE, 25);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_APPLE_MUSLE, 30);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_REMOVE_NASOLABIAL_FOLDS, 60);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_REMOVE_DARK_CIRCLES, 69);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_WHITE_TEETH, 20);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_EYE_ANGLE, 0);
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_EYE_DISTANCE, -23);
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_HAIRLINE_HEIGHT, 20);//< 额头，[-1, 1], 默认值为0.0，[-1, 0]为低发际线，[0, 1]为高发际线
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_NOSE_LENGTH, 0);//< 长鼻，[-1, 1], 默认值为0.0, [-1, 0]为短鼻，[0, 1]为长鼻
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_NARROW_NOSE, 21);//< 瘦鼻翼，[0, 1.0], 默认值为0.0，0.0不做瘦鼻
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_PHILTRUM_LENGTH, 0);//< 缩人中，[-1, 1], 默认值为0.0，[-1, 0]为长人中，[0, 1]为短人中
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_MOUTH_SIZE, 50);//< 嘴型，[-1, 1]，默认值为0.0，[-1, 0]为放大嘴巴，[0, 1]为缩小嘴巴
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_CHIN_LENGTH, 20);//< 下巴，[-1, 1], 默认值为0.0，[-1, 0]为短下巴，[0, 1]为长下巴
+            put(STEffectBeautyType.EFFECT_BEAUTY_RESHAPE_SHRINK_JAW, 11);//< 小脸, [0,1.0], 默认值0.10, 0.0不做小脸效果
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_PROFILE_RHINOPLASTY, 10);//< 侧脸隆鼻，[0, 1.0]，默认值为0.0，0.0不做侧脸隆鼻效果
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_OPEN_CANTHUS, 0);//< 开眼角，[0, 1.0]，默认值为0.0， 0.0不做开眼角
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_BRIGHT_EYE, 25);//< 亮眼，[0, 1.0]，默认值为0.0，0.0不做亮眼
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_APPLE_MUSLE, 30);//< 苹果肌，[0, 1.0]，默认值为0.0，0.0不做苹果肌
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_REMOVE_NASOLABIAL_FOLDS, 60);//< 祛法令纹，[0, 1.0]，默认值为0.0，0.0不做去法令纹
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_REMOVE_DARK_CIRCLES, 69);//< 祛黑眼圈，[0, 1.0]，默认值为0.0，0.0不做去黑眼圈
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_WHITE_TEETH, 20);//< 白牙，[0, 1.0]，默认值为0.0，0.0不做白牙
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_EYE_ANGLE, 0);//< 眼睛角度，[-1, 1]，默认值为0.0，[-1, 0]为左眼逆时针旋转，[0, 1]为左眼顺时针旋转，右眼与左眼相对
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_EYE_DISTANCE, -23);//< 眼距，[-1, 1]，默认值为0.0，[-1, 0]为减小眼距，[0, 1]为增加眼距
 
-            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_THIN_FACE, 30);
-            put(STEffectBeautyType.EFFECT_BEAUTY_RESHAPE_ROUND_EYE, 7);
-            put(STEffectBeautyType.EFFECT_BEAUTY_TONE_CLEAR, 20);//清晰度
+            put(STEffectBeautyType.EFFECT_BEAUTY_PLASTIC_THIN_FACE, 15);//< 瘦脸型，[0,1.0], 默认值0.0, 0.0不做瘦脸型效果
+            put(STEffectBeautyType.EFFECT_BEAUTY_RESHAPE_ROUND_EYE, 30);//< 圆眼, [0,1.0], 默认值0.0, 0.0不做圆眼
+            put(STEffectBeautyType.EFFECT_BEAUTY_TONE_CLEAR, 0);//清晰度
         }
     };
 
@@ -259,13 +259,13 @@ public class Sense extends IZegoCustomVideoProcessHandler {
                             STCommonNative.ST_MOBILE_DETECT_MODE_VIDEO, mContext.getAssets());
                     mSTHumanActionNativeWithoutGL.setFaceActionThreshold(ST_MOBILE_EYE_BLINK,0.2f);
                     mSTHumanActionNativeWithoutGL.addSubModelFromAssetFile(FileUtils.MODEL_SEGMENT_SKIN, mContext.getAssets());
-                    if (isOpenMakeUp()){
+                   /* if (isOpenMakeUp()){
                         setInitializeState(true);
                         Sense.stEnableMakeUp(true);
                         mSTHumanActionNativeWithoutGL.addSubModelFromAssetFile(FileUtils.MODEL_NAME_LIPS_PARSING, mContext.getAssets());
                         mSTHumanActionNativeWithoutGL.addSubModelFromAssetFile(FileUtils.HEAD_SEGMENT_DBL, mContext.getAssets());
                         mSTHumanActionNativeWithoutGL.addSubModelFromAssetFile(FileUtils.MODEL_NAME_FACE_EXTRA, mContext.getAssets());
-                    }
+                    }*/
                     LogUtils.i(TAG, "initHumanActionWithoutGL, createInstance result=" + result);
 
                     mInitHumanActionOkWithoutGL = result == 0;
@@ -332,14 +332,14 @@ public class Sense extends IZegoCustomVideoProcessHandler {
      *
      */
     public static void setHumanActionLivingConfig() {
-        mDetectConfig = ST_MOBILE_EYE_BLINK|ST_MOBILE_MOUTH_AH|ST_MOBILE_HEAD_YAW|ST_MOBILE_HEAD_PITCH|ST_MOBILE_BROW_JUMP;
+        mDetectConfig = ST_MOBILE_EYE_BLINK|ST_MOBILE_MOUTH_AH|ST_MOBILE_HEAD_YAW|ST_MOBILE_HEAD_PITCH;
     }
 
     /**
      * 美妆 和 贴纸
      */
     public static void setHumanActionmStickerConfig(){
-            if (null != mSTMobileEffectNativeWithoutGL){
+        if (null != mSTMobileEffectNativeWithoutGL){
             mDetectConfig = mSTMobileEffectNativeWithoutGL.getHumanActionDetectConfig();
         }
     }
@@ -510,6 +510,10 @@ public class Sense extends IZegoCustomVideoProcessHandler {
             mStickerChangeWithoutGL = true;
         }
         return 0;
+    }
+
+    @Override
+    public void onStart(ZegoPublishChannel channel) {
     }
 
     @Override
