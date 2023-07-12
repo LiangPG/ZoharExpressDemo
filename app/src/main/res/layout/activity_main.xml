@@ -205,6 +205,14 @@
             android:text="switchCamera" />
 
         <Button
+            android:id="@+id/btn_enable_camera"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/btn_add_cdn_publish"
+            android:layout_centerHorizontal="true"
+            android:text="enableCam" />
+
+        <Button
             android:id="@+id/btn_audio_observer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

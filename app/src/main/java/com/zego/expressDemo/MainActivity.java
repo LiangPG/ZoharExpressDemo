@@ -137,6 +137,14 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
             }
         });
 
+        findViewById(R.id.btn_enable_camera).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                isEnable = !isEnable;
+                ZegoEngine.getEngine().enableCamera(isEnable);
+            }
+        });
+
         findViewById(R.id.btn_change_resolution).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -228,6 +236,7 @@ public class MainActivity extends BaseActivity implements CompoundButton.OnCheck
         return mRotation == 0 || mRotation == Surface.ROTATION_180;
     }
 
+    private boolean isEnable = true;
     private boolean isLow = false;
     private boolean isBothMirror = false;
 
