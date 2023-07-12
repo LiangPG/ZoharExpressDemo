@@ -25,6 +25,7 @@ import com.zego.expressDemo.utils.JsonUtil;
 import com.zego.expressDemo.utils.LogUtils;
 import com.zego.expressDemo.utils.MD5Utils;
 import com.zego.expressDemo.utils.SPUtils;
+import com.zego.expressDemo.utils.ThreadUtil;
 import com.zego.expressDemo.utils.Utils;
 import com.zego.expressDemo.videocapture.IZegoVideoFrameConsumer;
 
@@ -343,7 +344,7 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
         }
 
         // 由于辅路复用主路内容，所以这里使用高清预览，避免主路的缩放影响主路
-        mExpressEngine.setCapturePipelineScaleMode(ZegoCapturePipelineScaleMode.POST);
+//        mExpressEngine.setCapturePipelineScaleMode(ZegoCapturePipelineScaleMode.POST);
 
         ZegoCustomVideoProcessConfig customVideoProcessConfig = new ZegoCustomVideoProcessConfig();
         customVideoProcessConfig.bufferType = ZegoVideoBufferType.GL_TEXTURE_2D_AND_RAW_DATA;
@@ -541,14 +542,24 @@ public class ZegoEngine implements IZegoVideoFrameConsumer {
      * 发送媒体增强补充信息
      */
     public void sendSEI(byte[] bytes) {
-        mExpressEngine.sendSEI(bytes);
+        ThreadUtil.execute(new Runnable() {
+            @Override
+            public void run() {
+                mExpressEngine.sendSEI(bytes);
+            }
+        });
     }
 
     /**
      * 发送媒体增强补充信息
      */
     public void sendSEI(byte[] bytes, ZegoPublishChannel channel) {
-        mExpressEngine.sendSEI(bytes, channel);
+        ThreadUtil.execute(new Runnable() {
+            @Override
+            public void run() {
+                mExpressEngine.sendSEI(bytes,channel);
+            }
+        });
     }
 
     public static class JoinLiveBuilder {
