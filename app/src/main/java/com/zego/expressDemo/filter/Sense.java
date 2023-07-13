@@ -31,7 +31,6 @@ import com.sensetime.stmobile.model.STHumanAction;
 import com.sensetime.stmobile.params.STEffectBeautyParams;
 import com.sensetime.stmobile.params.STEffectBeautyType;
 import com.sensetime.stmobile.params.STRotateType;
-import com.zego.expressDemo.utils.LogUtils;
 import com.zego.zegoavkit2.screencapture.ve_gl.GlRectDrawer;
 
 import java.io.File;
@@ -528,6 +527,11 @@ public class Sense extends IZegoCustomVideoProcessHandler {
 
         mI420ByteArray = null;
         mCopyI420ByteArray = null;
+
+        mBeautyChangeWithoutGL = true;
+        mStickerChangeWithoutGL = true;
+        mFilterChangeWithoutGL = true;
+        mMakeUpChangeWithoutGL = true;
     }
 
     private final Object I420_BYTE_ARRAY_LOCK = new Object();
@@ -678,6 +682,8 @@ public class Sense extends IZegoCustomVideoProcessHandler {
                     printConsume("mNeedMakeUp end");
                 }
 
+                int outTexture = inTexture;
+
                 if (mNeedBeautify) {
                     if (mBeautyChangeWithoutGL) {
                         mBeautyChangeWithoutGL = false;
@@ -705,15 +711,14 @@ public class Sense extends IZegoCustomVideoProcessHandler {
 
                     printConsume("render end");
 
-                    int outTexture = inTexture;
                     if (result == 0) {
                         outTexture = mBeautifyTextureIdWithoutGL[0];
                     }
-
-                    printConsume("sendCustomVideoProcessedTextureData start");
-                    ZegoExpressEngine.getEngine().sendCustomVideoProcessedTextureData(outTexture, width, height, referenceTimeMillisecond, channel);
-                    printConsume("sendCustomVideoProcessedTextureData end");
                 }
+
+                printConsume("sendCustomVideoProcessedTextureData start");
+                ZegoExpressEngine.getEngine().sendCustomVideoProcessedTextureData(outTexture, width, height, referenceTimeMillisecond, channel);
+                printConsume("sendCustomVideoProcessedTextureData end");
             }
         }
     }
