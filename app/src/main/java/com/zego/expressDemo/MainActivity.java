@@ -1,6 +1,7 @@
 package com.zego.expressDemo;
 
 import android.app.Application;
+import android.content.res.AssetManager;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -22,6 +23,9 @@ import com.zego.expressDemo.helper.FileHelper;
 
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,6 +35,9 @@ import im.zego.zegoexpress.ZegoRangeAudio;
 import im.zego.zegoexpress.callback.IZegoEventHandler;
 import im.zego.zegoexpress.callback.IZegoMediaPlayerLoadResourceCallback;
 import im.zego.zegoexpress.callback.IZegoRangeAudioEventHandler;
+import im.zego.zegoexpress.constants.ZegoAudioSourceType;
+import im.zego.zegoexpress.constants.ZegoMediaPlayerState;
+import im.zego.zegoexpress.constants.ZegoPublishChannel;
 import im.zego.zegoexpress.constants.ZegoRangeAudioListenMode;
 import im.zego.zegoexpress.constants.ZegoRangeAudioMicrophoneState;
 import im.zego.zegoexpress.constants.ZegoRangeAudioMode;
@@ -47,6 +54,7 @@ public class MainActivity extends BaseActivity {
     private final static String AUDIO_RANGE_ROOM_ID = "audio_range";
     private final static String PLAYER_A_NAME = "player_a";
     private final static String PLAYER_B_NAME = "player_b";
+    private final static String AUX_PREFIX = "aux_";
 
     private final static float AUDIO_RANGE_RECV_RANGE = 50f;
     private final static int AUDIO_RANGE_POSITION_UPDATE_FREQUENCY = 200;
@@ -54,6 +62,7 @@ public class MainActivity extends BaseActivity {
     private ZegoExpressEngine mExpressEngine;
     private ZegoMediaPlayer mMediaPlayerA;
     private ZegoMediaPlayer mMediaPlayerB;
+    private ZegoMediaPlayer mAuxMediaPlayer;
     private ZegoRangeAudio mRangeAudio;
 
     private UserSelectDialog mUserSelectDialog;
@@ -281,6 +290,58 @@ public class MainActivity extends BaseActivity {
                 mUserSelectDialog.notifyDataSetChanged();
             }
         });
+
+        // 使用媒体播放器作为音频采集源
+        mExpressEngine.setAudioSource(ZegoAudioSourceType.MEDIA_PLAYER, ZegoPublishChannel.AUX);
+        initMediaPlayer();
+        Button btStartPublishAux = findViewById(R.id.btn_start_publish_aux);
+        btStartPublishAux.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // 开始推流
+                mExpressEngine.startPublishingStream(
+                        AUX_PREFIX + AUDIO_RANGE_ROOM_ID + "_" + ZegoDataCenter.ZEGO_USER.userID,
+                        ZegoPublishChannel.AUX);
+                // 播放音乐
+                loadMediaPlayerResourceAndStart();
+            }
+        });
+
+        Button btStopPublishAux = findViewById(R.id.btn_stop_publish_aux);
+        btStopPublishAux.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // 停止推流
+                mAuxMediaPlayer.stop();
+                mExpressEngine.stopPublishingStream(ZegoPublishChannel.AUX);
+            }
+        });
+    }
+
+    private void initMediaPlayer() {
+        mAuxMediaPlayer = mExpressEngine.createMediaPlayer();
+        mAuxMediaPlayer.enableRepeat(true);
+    }
+
+    private void loadMediaPlayerResourceAndStart() {
+        mAuxMediaPlayer.stop();
+
+        mAuxMediaPlayer.loadResource(FileHelper.copyAssetsFile2Phone(MainActivity.this, "sample.mp3"), new IZegoMediaPlayerLoadResourceCallback() {
+            @Override
+            public void onLoadResourceCallback(int errorCode) {
+                if (errorCode == 0) {
+                    Log.d(TAG, "loadResource success");
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            mAuxMediaPlayer.start();
+                        }
+                    });
+                } else {
+                    Log.d(TAG, "loadResource error");
+                }
+            }
+        });
     }
 
     private void updateUserPosition() {
@@ -323,11 +384,23 @@ public class MainActivity extends BaseActivity {
             public void onRoomStreamUpdate(String roomID, ZegoUpdateType updateType, ArrayList<ZegoStream> streamList, JSONObject extendedData) {
                 if (updateType == ZegoUpdateType.ADD) {
                     for (ZegoStream streamInfo : streamList) {
-                        mUserList.add(streamInfo.user.userID);
+                        Log.d(TAG, "onRoomStreamUpdate " + streamInfo.streamID + " add");
+                        if (streamInfo.streamID.startsWith(AUX_PREFIX)) {
+                            // 辅路流 开始拉流
+                            mExpressEngine.startPlayingStream(streamInfo.streamID);
+                        } else {
+                            mUserList.add(streamInfo.user.userID);
+                        }
                     }
                 } else {
                     for (ZegoStream streamInfo : streamList) {
-                        mUserList.remove(streamInfo.user.userID);
+                        Log.d(TAG, "onRoomStreamUpdate " + streamInfo.streamID + " delete");
+                        if (streamInfo.streamID.startsWith(AUX_PREFIX)) {
+                            // 辅路流 停止拉流
+                            mExpressEngine.stopPlayingStream(streamInfo.streamID);
+                        } else {
+                            mUserList.remove(streamInfo.user.userID);
+                        }
                     }
                 }
                 mUserSelectDialog.notifyDataSetChanged();
@@ -339,8 +412,8 @@ public class MainActivity extends BaseActivity {
         mExpressEngine.loginRoom(AUDIO_RANGE_ROOM_ID, ZegoDataCenter.ZEGO_USER);
 
         mMediaPlayerA = mExpressEngine.createMediaPlayer();
-        mExpressEngine.createMediaPlayer(); // 过滤两个 player，为了测试
-        mExpressEngine.createMediaPlayer();
+        // mExpressEngine.createMediaPlayer(); // 过滤两个 player，为了测试
+        // mExpressEngine.createMediaPlayer();
         mMediaPlayerB = mExpressEngine.createMediaPlayer();
 
         mRangeAudio = mExpressEngine.createRangeAudio();

@@ -227,4 +227,23 @@
         android:layout_below="@id/btn_select_user"
         android:layout_centerHorizontal="true"
         android:text="我" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/tv_current_select_stream"
+        android:layout_centerHorizontal="true" >
+
+        <Button
+            android:id="@+id/btn_start_publish_aux"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="开始推辅路音频流" />
+
+        <Button
+            android:id="@+id/btn_stop_publish_aux"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="停止推辅路音频流" />
+    </LinearLayout>
 </RelativeLayout>
